@@ -1,4 +1,5 @@
 bin_PROGRAMS = 				\
+	intel_poller			\
 	intel_audio_dump 		\
 	intel_backlight 		\
 	intel_bios_dumper 		\
