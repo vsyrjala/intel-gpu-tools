@@ -75,6 +75,7 @@ TESTS_progs_M = \
 	kms_render \
 	kms_rotation_crc \
 	kms_setmode \
+	kms_sprite_flicker \
 	kms_universal_plane \
 	kms_vblank \
 	kms_crtc_background_color \

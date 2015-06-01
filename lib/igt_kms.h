@@ -269,10 +269,10 @@ void igt_wait_for_vblank(int drm_fd, enum pipe pipe);
 
 #define for_each_connected_output(display, output)		\
 	for (int i__ = 0;  i__ < (display)->n_outputs; i__++)	\
-		if ((output = &(display)->outputs[i__]), output->valid)
+		if (((output) = &(display)->outputs[i__]), (output)->valid)
 
 #define for_each_pipe(display, pipe)					\
-	for (pipe = 0; pipe < igt_display_get_n_pipes(display); pipe++)	\
+	for ((pipe) = 0; (pipe) < igt_display_get_n_pipes(display); (pipe)++) \
 
 #define for_each_plane_on_pipe(display, pipe, plane)			\
 	for (int i__ = 0; (plane) = &(display)->pipes[(pipe)].planes[i__], \
