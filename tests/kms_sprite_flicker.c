@@ -31,6 +31,8 @@
 #include "igt_kms.h"
 #include "igt_aux.h"
 
+//#define USE_SPRITE
+
 typedef struct {
 	int drm_fd;
 	igt_display_t display;
@@ -62,7 +64,7 @@ static void test_plane(data_t *data)
 	struct igt_fb fb;
 	drmModeModeInfo *mode;
 	igt_crc_t crc, crc_ref;
-	int j;
+	int j = 0;
 
 	igt_output_set_pipe(output, pipe);
 	igt_display_commit(display);
@@ -77,7 +79,11 @@ static void test_plane(data_t *data)
 	data->pipe_crc = igt_pipe_crc_new(pipe, INTEL_PIPE_CRC_SOURCE_AUTO);
 
 	primary = igt_output_get_plane(output, IGT_PLANE_PRIMARY);
+#ifndef USE_SPRITE
+	sprite = igt_output_get_plane(output, IGT_PLANE_PRIMARY);
+#else
 	sprite = igt_output_get_plane(output, IGT_PLANE_2);
+#endif
 	mode = igt_output_get_mode(output);
 
 	igt_info("mode %dx%d\n", mode->hdisplay, mode->vdisplay);
@@ -96,10 +102,12 @@ static void test_plane(data_t *data)
 
 	igt_pipe_crc_collect_crc(data->pipe_crc, &crc_ref);
 
+#ifndef USE_SPRITE
 	igt_plane_set_fb(primary, NULL);
 	igt_display_commit2(display, COMMIT_UNIVERSAL);
 
 	igt_remove_fb(data->drm_fd, &fb);
+#endif
 	memset(&fb, 0, sizeof(fb));
 
 	for (;;) {
