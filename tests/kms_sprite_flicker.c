@@ -55,6 +55,31 @@ static bool crc_equal(const igt_crc_t *a, const igt_crc_t *b)
 	return true;
 }
 
+static bool verify_fb(data_t *data, struct igt_fb *fb)
+{
+	void *ptr;
+	const uint32_t *p;
+	bool ret = true;
+	int x, y;
+
+	gem_set_domain(data->drm_fd, fb->gem_handle, I915_GEM_DOMAIN_CPU, 0);
+
+	ptr = gem_mmap__cpu(data->drm_fd, fb->gem_handle, 0, fb->size, PROT_READ);
+
+	p = ptr;
+	for (y = 0; y < fb->height; y++) {
+		for (x = 0; x < fb->width; x++) {
+			if (p[x] != 0xff0000ff)
+				ret = false;
+		}
+		p += fb->stride / 4;
+	}
+
+	munmap(ptr, fb->size);
+
+	return ret;
+}
+
 static void test_plane(data_t *data)
 {
 	igt_display_t *display = &data->display;
@@ -127,8 +152,6 @@ static void test_plane(data_t *data)
 
 		igt_debug_wait_for_keypress("mid");
 
-		memset(&fb, 0, sizeof(fb));
-
 		for (i = 0; i < 5; i++) {
 			usleep(250000);
 			igt_pipe_crc_collect_crc(data->pipe_crc, &crc);
@@ -137,9 +160,13 @@ static void test_plane(data_t *data)
 		}
 		if (i != 5)
 			break;
+
+		memset(&fb, 0, sizeof(fb));
 	}
 
 	igt_info("hit the problem after %d attempts\n", j);
+	if (!verify_fb(data, &fb))
+		igt_warn("framebuffer is corrupted\n");
 	igt_debug_wait_for_keypress("post");
 
 	igt_pipe_crc_free(data->pipe_crc);
