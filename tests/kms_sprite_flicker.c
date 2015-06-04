@@ -34,6 +34,9 @@
 //#define USE_SPRITE
 //#define USE_TILING
 
+#define FB_W (mode->hdisplay + 1024/4)
+#define FB_H (mode->vdisplay)
+
 typedef struct {
 	int drm_fd;
 	igt_display_t display;
@@ -119,13 +122,15 @@ static void test_plane(data_t *data)
 	igt_info("mode %dx%d\n", mode->hdisplay, mode->vdisplay);
 
 	igt_create_color_fb(data->drm_fd,
-			    mode->hdisplay, mode->vdisplay,
+			    FB_W, FB_H,
 			    DRM_FORMAT_XRGB8888,
 			    data->tiling,
 			    0.0, 0.0, 1.0,
 			    &fb);
 
 	igt_plane_set_fb(primary, &fb);
+	igt_fb_set_size(&fb, primary, mode->hdisplay, mode->vdisplay);
+	igt_plane_set_size(primary, mode->hdisplay, mode->vdisplay);
 	igt_display_commit(display);
 
 	igt_debug_wait_for_keypress("pre");
@@ -146,13 +151,15 @@ static void test_plane(data_t *data)
 		j++;
 
 		igt_create_color_fb(data->drm_fd,
-				    mode->hdisplay, mode->vdisplay,
+				    FB_W, FB_H,
 				    DRM_FORMAT_XRGB8888,
 				    data->tiling,
 				    0.0, 0.0, 1.0,
 				    &fb);
 
 		igt_plane_set_fb(sprite, &fb);
+		igt_fb_set_size(&fb, sprite, mode->hdisplay, mode->vdisplay);
+		igt_plane_set_size(sprite, mode->hdisplay, mode->vdisplay);
 		igt_display_commit2(display, COMMIT_UNIVERSAL);
 
 		igt_debug_wait_for_keypress("mid");
