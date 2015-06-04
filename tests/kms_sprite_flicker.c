@@ -32,6 +32,7 @@
 #include "igt_aux.h"
 
 //#define USE_SPRITE
+//#define USE_TILING
 
 typedef struct {
 	int drm_fd;
@@ -39,6 +40,7 @@ typedef struct {
 	igt_output_t *output;
 	enum pipe pipe;
 	igt_pipe_crc_t *pipe_crc;
+	uint64_t tiling;
 } data_t;
 
 static bool crc_equal(const igt_crc_t *a, const igt_crc_t *b)
@@ -61,6 +63,9 @@ static bool verify_fb(data_t *data, struct igt_fb *fb)
 	const uint32_t *p;
 	bool ret = true;
 	int x, y;
+
+	if (data->tiling != LOCAL_DRM_FORMAT_MOD_NONE)
+		return true;
 
 	gem_set_domain(data->drm_fd, fb->gem_handle, I915_GEM_DOMAIN_CPU, 0);
 
@@ -116,7 +121,7 @@ static void test_plane(data_t *data)
 	igt_create_color_fb(data->drm_fd,
 			    mode->hdisplay, mode->vdisplay,
 			    DRM_FORMAT_XRGB8888,
-			    LOCAL_DRM_FORMAT_MOD_NONE,
+			    data->tiling,
 			    0.0, 0.0, 1.0,
 			    &fb);
 
@@ -143,7 +148,7 @@ static void test_plane(data_t *data)
 		igt_create_color_fb(data->drm_fd,
 				    mode->hdisplay, mode->vdisplay,
 				    DRM_FORMAT_XRGB8888,
-				    LOCAL_DRM_FORMAT_MOD_NONE,
+				    data->tiling,
 				    0.0, 0.0, 1.0,
 				    &fb);
 
@@ -186,6 +191,12 @@ igt_simple_main
 	igt_skip_on_simulation();
 
 	data.drm_fd = drm_open_any_master();
+
+#ifdef USE_TILING
+	data.tiling = LOCAL_I915_FORMAT_MOD_X_TILED;
+#else
+	data.tiling = LOCAL_DRM_FORMAT_MOD_NONE;
+#endif
 
 	kmstest_set_vt_graphics_mode();
 
