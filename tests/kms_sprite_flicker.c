@@ -112,10 +112,10 @@ static void test_plane(data_t *data)
 	data->pipe_crc = igt_pipe_crc_new(pipe, INTEL_PIPE_CRC_SOURCE_AUTO);
 
 	primary = igt_output_get_plane(output, IGT_PLANE_PRIMARY);
-#ifndef USE_SPRITE
-	sprite = igt_output_get_plane(output, IGT_PLANE_PRIMARY);
-#else
+#ifdef USE_SPRITE
 	sprite = igt_output_get_plane(output, IGT_PLANE_2);
+#else
+	sprite = igt_output_get_plane(output, IGT_PLANE_PRIMARY);
 #endif
 	mode = igt_output_get_mode(output);
 
@@ -137,7 +137,7 @@ static void test_plane(data_t *data)
 
 	igt_pipe_crc_collect_crc(data->pipe_crc, &crc_ref);
 
-#ifndef USE_SPRITE
+#ifdef USE_SPRITE
 	igt_plane_set_fb(primary, NULL);
 	igt_display_commit2(display, COMMIT_UNIVERSAL);
 
@@ -184,8 +184,10 @@ static void test_plane(data_t *data)
 	igt_pipe_crc_free(data->pipe_crc);
 	data->pipe_crc = NULL;
 
+#ifdef USE_SPRITE
 	igt_plane_set_fb(sprite, NULL);
 	igt_display_commit2(display, COMMIT_UNIVERSAL);
+#endif
 
 	igt_output_set_pipe(output, PIPE_ANY);
 	igt_display_commit(display);
