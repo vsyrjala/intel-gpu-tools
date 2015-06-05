@@ -30,9 +30,18 @@
 #include "igt_debugfs.h"
 #include "igt_kms.h"
 #include "igt_aux.h"
+#include "intel_chipset.h"
+#include "intel_io.h"
 
 //#define USE_SPRITE
 //#define USE_TILING
+
+static uint16_t pipe_offset[3] = { 0, 0x1000, 0x4000 };
+
+static uint32_t read_reg(uint32_t reg)
+{
+	return INREG(0x180000 + reg);
+}
 
 #define FB_W (mode->hdisplay + 1024/4)
 #define FB_H (mode->vdisplay)
@@ -143,6 +152,7 @@ static void test_plane(data_t *data)
 	memset(&fb, 0, sizeof(fb));
 
 	for (;;) {
+		uint32_t surf;
 		int i;
 
 		j++;
@@ -167,8 +177,15 @@ static void test_plane(data_t *data)
 			if (!crc_equal(&crc, &crc_ref))
 				break;
 		}
-		if (i != 5)
-			break;
+		surf = read_reg(pipe_offset[data->pipe] + DSPASURF);
+		if (i != 5) {
+			igt_info("0x%08x\n", surf);
+			if ((surf & 0xf000) != 0x1000)
+				break;
+		} else {
+			if ((surf & 0xf000) == 0x1000)
+				igt_info("WORKING 0x%08x\n", surf);
+		}
 
 		memset(&fb, 0, sizeof(fb));
 	}
@@ -209,10 +226,14 @@ igt_simple_main
 	igt_require_pipe_crc();
 	igt_display_init(&data.display, data.drm_fd);
 
+	intel_register_access_init(intel_get_pci_device(), 0);
+
 	for_each_connected_output(&data.display, data.output) {
 		for_each_pipe(&data.display, data.pipe)
 			test_plane(&data);
 	}
+
+	intel_register_access_fini();
 
 	igt_display_fini(&data.display);
 }
