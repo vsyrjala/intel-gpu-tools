@@ -46,6 +46,8 @@ static uint32_t read_reg(uint32_t reg)
 #define FB_W (mode->hdisplay + 1024/4)
 #define FB_H (mode->vdisplay)
 
+#define NCRCS 20
+
 typedef struct {
 	int drm_fd;
 	igt_display_t display;
@@ -102,7 +104,7 @@ static void test_plane(data_t *data)
 	igt_plane_t *primary, *sprite;
 	struct igt_fb fb;
 	drmModeModeInfo *mode;
-	igt_crc_t crc, crc_ref;
+	igt_crc_t *crc, crc_ref;
 	int j = 0;
 
 	igt_output_set_pipe(output, pipe);
@@ -172,9 +174,18 @@ static void test_plane(data_t *data)
 		igt_debug_wait_for_keypress("mid");
 
 		for (i = 0; i < 5; i++) {
+			int k;
+
+			igt_pipe_crc_start(data->pipe_crc);
 			usleep(250000);
-			igt_pipe_crc_collect_crc(data->pipe_crc, &crc);
-			if (!crc_equal(&crc, &crc_ref))
+			igt_pipe_crc_get_crcs(data->pipe_crc, NCRCS, &crc);
+			igt_pipe_crc_stop(data->pipe_crc);
+
+			for (k = 0; k < NCRCS; k++) {
+				if (!crc_equal(&crc[k], &crc_ref))
+					break;
+			}
+			if (k != NCRCS)
 				break;
 		}
 		surf = read_reg(pipe_offset[data->pipe] + DSPASURF);
