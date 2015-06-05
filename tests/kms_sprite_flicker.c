@@ -67,12 +67,9 @@ static bool verify_fb(data_t *data, struct igt_fb *fb)
 	bool ret = true;
 	int x, y;
 
-	if (data->tiling != LOCAL_DRM_FORMAT_MOD_NONE)
-		return true;
+	gem_set_domain(data->drm_fd, fb->gem_handle, I915_GEM_DOMAIN_GTT, 0);
 
-	gem_set_domain(data->drm_fd, fb->gem_handle, I915_GEM_DOMAIN_CPU, 0);
-
-	ptr = gem_mmap__cpu(data->drm_fd, fb->gem_handle, 0, fb->size, PROT_READ);
+	ptr = gem_mmap__gtt(data->drm_fd, fb->gem_handle, fb->size, PROT_READ);
 
 	p = ptr;
 	for (y = 0; y < fb->height; y++) {
