@@ -353,7 +353,7 @@ static void test_plane_rotation_ytiled_obj(data_t *data, enum igt_plane plane_ty
 	ret = __gem_set_tiling(fd, gem_handle, I915_TILING_Y, stride);
 	igt_assert(ret == 0);
 
-	do_or_die(__kms_addfb(fd, gem_handle, w, h, stride,
+	do_or_die(__kms_addfb(fd, gem_handle, w, h, stride, 0,
 		  format, tiling, LOCAL_DRM_MODE_FB_MODIFIERS,
 		  &data->fb.fb_id));
 	data->fb.width = w;
@@ -432,7 +432,7 @@ static void test_plane_rotation_exhaust_fences(data_t *data, enum igt_plane plan
 			goto err_alloc;
 		}
 
-		ret = (__kms_addfb(fd, gem_handle, w, h, stride,
+		ret = (__kms_addfb(fd, gem_handle, w, h, stride, 0,
 		       format, tiling, LOCAL_DRM_MODE_FB_MODIFIERS,
 		       &data2[i].fb.fb_id));
 		if (ret) {

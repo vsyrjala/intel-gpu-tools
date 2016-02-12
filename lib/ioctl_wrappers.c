@@ -1591,8 +1591,8 @@ void igt_require_fb_modifiers(int fd)
 }
 
 int __kms_addfb(int fd, uint32_t handle, uint32_t width, uint32_t height,
-		uint32_t stride, uint32_t pixel_format, uint64_t modifier,
-		uint32_t flags, uint32_t *buf_id)
+		uint32_t stride, uint32_t offset, uint32_t pixel_format,
+		uint64_t modifier, uint32_t flags, uint32_t *buf_id)
 {
 	struct local_drm_mode_fb_cmd2 f;
 	int ret;
@@ -1605,6 +1605,7 @@ int __kms_addfb(int fd, uint32_t handle, uint32_t width, uint32_t height,
 	f.height = height;
 	f.pixel_format = pixel_format;
 	f.flags = flags;
+	f.offsets[0] = offset;
 	f.handles[0] = handle;
 	f.pitches[0] = stride;
 	f.modifier[0] = modifier;
