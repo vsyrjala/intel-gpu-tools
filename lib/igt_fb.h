@@ -120,5 +120,8 @@ uint32_t igt_drm_format_to_bpp(uint32_t drm_format);
 const char *igt_format_str(uint32_t drm_format);
 void igt_get_all_cairo_formats(const uint32_t **formats, int *format_count);
 
+void igt_get_fb_tile_size(int fd, uint64_t tiling, int fb_bpp,
+			  unsigned *width_ret, unsigned *height_ret);
+
 #endif /* __IGT_FB_H__ */
 

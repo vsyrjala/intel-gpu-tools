@@ -420,6 +420,167 @@ static void addfb25_ytile(int fd, int gen)
 	}
 }
 
+static void offset_tests(int fd, int gen)
+{
+	struct drm_mode_fb_cmd2 f = {};
+	unsigned int tw, th;
+
+	f.width = 512;
+	f.height = 512;
+	f.pixel_format = DRM_FORMAT_XRGB8888;
+	f.pitches[0] = 1024*4;
+
+	igt_fixture {
+		gem_bo = gem_create(fd, 1024*1024*4);
+		igt_assert(gem_bo);
+		/* test without a fence getting in the way */
+		gem_set_tiling(fd, gem_bo, I915_TILING_NONE, 0);
+	}
+
+	f.handles[0] = gem_bo;
+
+	igt_subtest("offset-pixel-alignment") {
+		f.pixel_format = DRM_FORMAT_XRGB8888;
+		f.offsets[0] = 1;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == -1 &&
+			   errno == EINVAL);
+		f.offsets[0] = 2;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == -1 &&
+			   errno == EINVAL);
+		f.offsets[0] = 3;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == -1 &&
+			   errno == EINVAL);
+		f.offsets[0] = 4;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == 0);
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_RMFB, &f.fb_id) == 0);
+		f.fb_id = 0;
+
+		f.pixel_format = DRM_FORMAT_RGB565;
+		f.offsets[0] = 1;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == -1 &&
+			   errno == EINVAL);
+		f.offsets[0] = 2;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == 0);
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_RMFB, &f.fb_id) == 0);
+		f.fb_id = 0;
+
+		f.pixel_format = DRM_FORMAT_C8;
+		f.offsets[0] = 1;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == 0);
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_RMFB, &f.fb_id) == 0);
+		f.fb_id = 0;
+	}
+
+	f.pixel_format = DRM_FORMAT_XRGB8888;
+
+	igt_subtest("offset-linear") {
+		f.offsets[0] = 512 * f.pitches[0];
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == 0);
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_RMFB, &f.fb_id) == 0);
+		f.fb_id = 0;
+
+		f.offsets[0] = 512 * f.pitches[0] - 4;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == 0);
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_RMFB, &f.fb_id) == 0);
+		f.fb_id = 0;
+
+		f.offsets[0] = 512 * f.pitches[0] + 4;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == -1 &&
+			   errno == EINVAL);
+	}
+
+	f.flags = LOCAL_DRM_MODE_FB_MODIFIERS;
+	f.modifier[0] = LOCAL_I915_FORMAT_MOD_X_TILED;
+
+	igt_fixture
+		igt_get_fb_tile_size(fd, LOCAL_I915_FORMAT_MOD_X_TILED, 32, &tw, &th);
+
+	igt_subtest("offset-xtiled") {
+		f.offsets[0] = 511 * f.pitches[0];
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == 0);
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_RMFB, &f.fb_id) == 0);
+		f.fb_id = 0;
+
+		f.offsets[0] = 512 * f.pitches[0];
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == 0);
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_RMFB, &f.fb_id) == 0);
+		f.fb_id = 0;
+
+		f.offsets[0] = 512 * f.pitches[0] - 4;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == -1 &&
+			   errno == EINVAL);
+		f.fb_id = 0;
+
+		f.offsets[0] = 512 * f.pitches[0] + 4;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == -1 &&
+			   errno == EINVAL);
+		f.fb_id = 0;
+
+		f.offsets[0] = (512 - th) * f.pitches[0];
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == 0);
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_RMFB, &f.fb_id) == 0);
+		f.fb_id = 0;
+
+		f.offsets[0] = (512 - th) * f.pitches[0] - 4;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == 0);
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_RMFB, &f.fb_id) == 0);
+		f.fb_id = 0;
+
+		f.offsets[0] = (512 - th) * f.pitches[0] + 4;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == 0);
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_RMFB, &f.fb_id) == 0);
+		f.fb_id = 0;
+
+		f.offsets[0] = (512 - th + 1) * f.pitches[0];
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == 0);
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_RMFB, &f.fb_id) == 0);
+		f.fb_id = 0;
+
+		f.offsets[0] = (512 - th + 1) - 4;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == -1 &&
+			   errno == EINVAL);
+
+		f.offsets[0] = (512 - th + 1) + 4;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == -1 &&
+			   errno == EINVAL);
+	}
+
+	igt_subtest("offset-vs-fence-alignment") {
+		/* test without a fence */
+		gem_set_tiling(fd, gem_bo, I915_TILING_NONE, 0);
+
+		/* fence stride aligned */
+		f.offsets[0] = f.pitches[0] - f.width * 4;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == 0);
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_RMFB, &f.fb_id) == 0);
+		f.fb_id = 0;
+
+		/* not fence stride aligned */
+		f.offsets[0] = f.pitches[0] - (f.width - 1) * 4;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == 0);
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_RMFB, &f.fb_id) == 0);
+		f.fb_id = 0;
+
+		/* test with a fence */
+		gem_set_tiling(fd, gem_bo, I915_TILING_X, 1024*4);
+
+		/* fence stride aligned */
+		f.offsets[0] = f.pitches[0] - f.width * 4;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == 0);
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_RMFB, &f.fb_id) == 0);
+		f.fb_id = 0;
+
+		/* not fence stride aligned */
+		f.offsets[0] = f.pitches[0] - (f.width - 1) * 4;
+		igt_assert(drmIoctl(fd, DRM_IOCTL_MODE_ADDFB2, &f) == -1 &&
+			   errno == EINVAL);
+	}
+
+	igt_fixture
+		gem_close(fd, gem_bo);
+}
+
+
 int fd;
 int gen;
 
@@ -439,6 +600,8 @@ igt_main
 	addfb25_tests(fd);
 
 	addfb25_ytile(fd, gen);
+
+	offset_tests(fd, gen);
 
 	igt_fixture
 		close(fd);

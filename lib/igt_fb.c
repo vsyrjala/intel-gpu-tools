@@ -73,8 +73,8 @@ static struct format_desc_struct {
 #define for_each_format(f)	\
 	for (f = format_desc; f - format_desc < ARRAY_SIZE(format_desc); f++)
 
-static void igt_get_fb_tile_size(int fd, uint64_t tiling, int fb_bpp,
-				 unsigned *width_ret, unsigned *height_ret)
+void igt_get_fb_tile_size(int fd, uint64_t tiling, int fb_bpp,
+			  unsigned *width_ret, unsigned *height_ret)
 {
 	uint32_t devid = intel_get_drm_devid(fd);
 
