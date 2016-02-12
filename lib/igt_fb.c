@@ -136,13 +136,17 @@ void igt_get_fb_tile_size(int fd, uint64_t tiling, int fb_bpp,
  * @height: height of the framebuffer in pixels
  * @bpp: bytes per pixel of the framebuffer
  * @tiling: tiling layout of the framebuffer (as framebuffer modifier)
+ * @bo_stride: stride of the backing bo (0 for automatic stride)
+ * @offset: fb linear starting offset
  * @size_ret: returned size for the framebuffer
  * @stride_ret: returned stride for the framebuffer
  *
  * This function returns valid stride and size values for a framebuffer with the
  * specified parameters.
  */
-void igt_calc_fb_size(int fd, int width, int height, int bpp, uint64_t tiling,
+void igt_calc_fb_size(int fd, int width, int height,
+		      int bpp, uint64_t tiling,
+		      unsigned bo_stride, unsigned offset,
 		      unsigned *size_ret, unsigned *stride_ret)
 {
 	unsigned int tile_width, tile_height, stride, size;
@@ -162,15 +166,28 @@ void igt_calc_fb_size(int fd, int width, int height, int bpp, uint64_t tiling,
 		 * tiled. But then that failure is expected.
 		 */
 
-		v = width * bpp / 8;
+		v = byte_width;
 		for (stride = 512; stride < v; stride *= 2)
 			;
+	} else {
+		stride = ALIGN(byte_width, tile_width);
+	}
+
+	if (bo_stride != 0) {
+		igt_assert(stride <= bo_stride);
+		stride = bo_stride;
+	}
+
+	height += (offset + stride - 1) / stride;
+
+	if (intel_gen(intel_get_drm_devid(fd)) <= 3 &&
+	    tiling != LOCAL_DRM_FORMAT_MOD_NONE) {
+		int v;
 
 		v = stride * height;
 		for (size = 1024*1024; size < v; size *= 2)
 			;
 	} else {
-		stride = ALIGN(byte_width, tile_width);
 		size = stride * ALIGN(height, tile_height);
 	}
 
@@ -181,26 +198,27 @@ void igt_calc_fb_size(int fd, int width, int height, int bpp, uint64_t tiling,
 /* helpers to create nice-looking framebuffers */
 static int create_bo_for_fb(int fd, int width, int height, int bpp,
 			    uint64_t tiling, unsigned bo_size,
-			    unsigned bo_stride, uint32_t *gem_handle_ret,
-			    unsigned *size_ret, unsigned *stride_ret)
+			    unsigned bo_stride, unsigned offset,
+			    uint32_t *gem_handle_ret, unsigned *size_ret,
+			    unsigned *stride_ret)
 {
 	uint32_t gem_handle;
 	int ret = 0;
 	unsigned size, stride;
 
-	igt_calc_fb_size(fd, width, height, bpp, tiling, &size, &stride);
+	igt_calc_fb_size(fd, width, height, bpp, tiling,
+			 bo_stride, offset, &size, &stride);
 	if (bo_size == 0)
 		bo_size = size;
-	if (bo_stride == 0)
-		bo_stride = stride;
+	igt_assert(size <= bo_size);
 
 	gem_handle = gem_create(fd, bo_size);
 
 	if (tiling == LOCAL_I915_FORMAT_MOD_X_TILED)
 		ret = __gem_set_tiling(fd, gem_handle, I915_TILING_X,
-				       bo_stride);
+				       stride);
 
-	*stride_ret = bo_stride;
+	*stride_ret = stride;
 	*size_ret = bo_size;
 	*gem_handle_ret = gem_handle;
 
@@ -478,6 +496,84 @@ void igt_paint_image(cairo_t *cr, const char *filename,
 }
 
 /**
+ * igt_create_fb_with_bo_size_offset:
+ * @fd: open i915 drm file descriptor
+ * @width: width of the framebuffer in pixel
+ * @height: height of the framebuffer in pixel
+ * @format: drm fourcc pixel format code
+ * @tiling: tiling layout of the framebuffer (as framebuffer modifier)
+ * @fb: pointer to an #igt_fb structure
+ * @bo_size: size of the backing bo (0 for automatic size)
+ * @bo_stride: stride of the backing bo (0 for automatic stride)
+ * @offset: linear offset to the start of the fb from the start of the bo
+ *
+ * This function allocates a gem buffer object suitable to back a framebuffer
+ * with the requested properties and then wraps it up in a drm framebuffer
+ * object of the requested size. All metadata is stored in @fb.
+ *
+ * The backing storage of the framebuffer is filled with all zeros, i.e. black
+ * for rgb pixel formats.
+ *
+ * Returns:
+ * The kms id of the created framebuffer.
+ */
+unsigned int
+igt_create_fb_with_bo_size_offset(int fd, int width, int height,
+				  uint32_t format, uint64_t tiling,
+				  struct igt_fb *fb, unsigned bo_size,
+				  unsigned bo_stride, unsigned offset)
+{
+	uint32_t fb_id;
+	int bpp;
+
+	memset(fb, 0, sizeof(*fb));
+
+	bpp = igt_drm_format_to_bpp(format);
+
+	igt_debug("%s(width=%d, height=%d, format=0x%x [bpp=%d], tiling=0x%"PRIx64", size=%d, stride=%d, offset=%d)\n",
+		  __func__, width, height, format, bpp, tiling, bo_size, bo_stride, offset);
+	do_or_die(create_bo_for_fb(fd, width, height, bpp, tiling, bo_size,
+				   bo_stride, offset, &fb->gem_handle, &fb->size,
+				   &fb->stride));
+
+	igt_debug("%s(handle=%d, pitch=%d)\n",
+		  __func__, fb->gem_handle, fb->stride);
+
+	if (tiling != LOCAL_DRM_FORMAT_MOD_NONE &&
+	    tiling != LOCAL_I915_FORMAT_MOD_X_TILED) {
+		do_or_die(__kms_addfb(fd, fb->gem_handle, width, height,
+				      fb->stride, offset, format, tiling,
+				      LOCAL_DRM_MODE_FB_MODIFIERS, &fb_id));
+	} else {
+		uint32_t handles[4];
+		uint32_t pitches[4];
+		uint32_t offsets[4];
+
+		memset(handles, 0, sizeof(handles));
+		memset(pitches, 0, sizeof(pitches));
+		memset(offsets, 0, sizeof(offsets));
+
+		offsets[0] = offset;
+		handles[0] = fb->gem_handle;
+		pitches[0] = fb->stride;
+
+		do_or_die(drmModeAddFB2(fd, width, height, format,
+					handles, pitches, offsets,
+					&fb_id, 0));
+	}
+
+	fb->width = width;
+	fb->height = height;
+	fb->tiling = tiling;
+	fb->offset_y = offset / fb->stride;
+	fb->offset_x = offset % fb->stride / (bpp / 8);
+	fb->drm_format = format;
+	fb->fb_id = fb_id;
+
+	return fb_id;
+}
+
+/**
  * igt_create_fb_with_bo_size:
  * @fd: open i915 drm file descriptor
  * @width: width of the framebuffer in pixel
@@ -504,51 +600,8 @@ igt_create_fb_with_bo_size(int fd, int width, int height,
 			   struct igt_fb *fb, unsigned bo_size,
 			   unsigned bo_stride)
 {
-	uint32_t fb_id;
-	int bpp;
-
-	memset(fb, 0, sizeof(*fb));
-
-	bpp = igt_drm_format_to_bpp(format);
-
-	igt_debug("%s(width=%d, height=%d, format=0x%x [bpp=%d], tiling=0x%"PRIx64", size=%d)\n",
-		  __func__, width, height, format, bpp, tiling, bo_size);
-	do_or_die(create_bo_for_fb(fd, width, height, bpp, tiling, bo_size,
-				   bo_stride, &fb->gem_handle, &fb->size,
-				   &fb->stride));
-
-	igt_debug("%s(handle=%d, pitch=%d)\n",
-		  __func__, fb->gem_handle, fb->stride);
-
-	if (tiling != LOCAL_DRM_FORMAT_MOD_NONE &&
-	    tiling != LOCAL_I915_FORMAT_MOD_X_TILED) {
-		do_or_die(__kms_addfb(fd, fb->gem_handle, width, height,
-				      fb->stride, 0, format, tiling,
-				      LOCAL_DRM_MODE_FB_MODIFIERS, &fb_id));
-	} else {
-		uint32_t handles[4];
-		uint32_t pitches[4];
-		uint32_t offsets[4];
-
-		memset(handles, 0, sizeof(handles));
-		memset(pitches, 0, sizeof(pitches));
-		memset(offsets, 0, sizeof(offsets));
-
-		handles[0] = fb->gem_handle;
-		pitches[0] = fb->stride;
-
-		do_or_die(drmModeAddFB2(fd, width, height, format,
-					handles, pitches, offsets,
-					&fb_id, 0));
-	}
-
-	fb->width = width;
-	fb->height = height;
-	fb->tiling = tiling;
-	fb->drm_format = format;
-	fb->fb_id = fb_id;
-
-	return fb_id;
+	return igt_create_fb_with_bo_size_offset(fd, width, height, format, tiling,
+						 fb, bo_size, bo_stride, 0);
 }
 
 /**
@@ -904,7 +957,7 @@ static void destroy_cairo_surface__blit(void *arg)
 				   fb->gem_handle,
 				   fb->stride,
 				   obj_tiling,
-				   0, 0 /* dst_x, dst_y */);
+				   fb->offset_x, fb->offset_y); /* dst_x, dst_y */
 
 	gem_sync(blit->fd, blit->linear.handle);
 	gem_close(blit->fd, blit->linear.handle);
@@ -929,10 +982,10 @@ static void create_cairo_surface__blit(int fd, struct igt_fb *fb)
 	 */
 	bpp = igt_drm_format_to_bpp(fb->drm_format);
 	ret = create_bo_for_fb(fd, fb->width, fb->height, bpp,
-				LOCAL_DRM_FORMAT_MOD_NONE, 0, 0,
-				&blit->linear.handle,
-				&blit->linear.size,
-				&blit->linear.stride);
+			       LOCAL_DRM_FORMAT_MOD_NONE, 0, 0, 0,
+			       &blit->linear.handle,
+			       &blit->linear.size,
+			       &blit->linear.stride);
 
 	igt_assert(ret == 0);
 
@@ -947,7 +1000,7 @@ static void create_cairo_surface__blit(int fd, struct igt_fb *fb)
 				   fb->gem_handle,
 				   fb->stride,
 				   obj_tiling,
-				   0, 0, /* src_x, src_y */
+				   fb->offset_x, fb->offset_y, /* src_x, src_y */
 				   fb->width, fb->height,
 				   blit->linear.handle,
 				   blit->linear.stride,
@@ -982,14 +1035,23 @@ static void create_cairo_surface__blit(int fd, struct igt_fb *fb)
 static void destroy_cairo_surface__gtt(void *arg)
 {
 	struct igt_fb *fb = arg;
+	void *ptr = cairo_image_surface_get_data(fb->cairo_surface);
 
-	munmap(cairo_image_surface_get_data(fb->cairo_surface), fb->size);
+	ptr = (uint8_t *)ptr -
+		(fb->offset_y * fb->stride +
+		 fb->offset_x * (igt_drm_format_to_bpp(fb->drm_format) / 8));
+
+	munmap(ptr, fb->size);
 	fb->cairo_surface = NULL;
 }
 
 static void create_cairo_surface__gtt(int fd, struct igt_fb *fb)
 {
 	void *ptr = gem_mmap__gtt(fd, fb->gem_handle, fb->size, PROT_READ | PROT_WRITE);
+
+	ptr = (uint8_t *)ptr +
+		(fb->offset_y * fb->stride +
+		 fb->offset_x * (igt_drm_format_to_bpp(fb->drm_format) / 8));
 
 	fb->cairo_surface =
 		cairo_image_surface_create_for_data(ptr,

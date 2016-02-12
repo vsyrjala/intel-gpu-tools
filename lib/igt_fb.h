@@ -53,6 +53,7 @@ struct igt_fb {
 	unsigned stride;
 	uint64_t tiling;
 	unsigned size;
+	unsigned offset_x, offset_y;
 	cairo_surface_t *cairo_surface;
 	unsigned domain;
 	uint32_t src_x;
@@ -70,8 +71,15 @@ enum igt_text_align {
 	align_hcenter	= 0x08,
 };
 
-void igt_calc_fb_size(int fd, int width, int height, int bpp, uint64_t tiling,
+void igt_calc_fb_size(int fd, int width, int height,
+		      int bpp, uint64_t tiling,
+		      unsigned bo_stride, unsigned offset,
 		      unsigned *size_ret, unsigned *stride_ret);
+unsigned int
+igt_create_fb_with_bo_size_offset(int fd, int width, int height,
+				  uint32_t format, uint64_t tiling,
+				  struct igt_fb *fb, unsigned bo_size,
+				  unsigned bo_stride, unsigned offset);
 unsigned int
 igt_create_fb_with_bo_size(int fd, int width, int height,
 			   uint32_t format, uint64_t tiling,

@@ -577,8 +577,8 @@ static void create_fb(enum pixel_format pformat, int width, int height,
 	else
 		tiling_for_size = LOCAL_I915_FORMAT_MOD_X_TILED;
 
-	igt_calc_fb_size(drm.fd, width, height, bpp, tiling_for_size, &size,
-			 &stride);
+	igt_calc_fb_size(drm.fd, width, height, bpp, tiling_for_size,
+			 0, 0, &size, &stride);
 
 	igt_create_fb_with_bo_size(drm.fd, width, height, format, tiling, fb,
 				   size, stride);
