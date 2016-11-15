@@ -93,6 +93,7 @@ static void igt_get_fb_tile_size(int fd, uint64_t tiling, int fb_bpp,
 		}
 		break;
 	case LOCAL_I915_FORMAT_MOD_Y_TILED:
+	case LOCAL_I915_FORMAT_MOD_Y_TILED_CCS:
 		igt_require_intel(fd);
 		if (intel_gen(intel_get_drm_devid(fd)) == 2) {
 			*width_ret = 128;
@@ -106,6 +107,7 @@ static void igt_get_fb_tile_size(int fd, uint64_t tiling, int fb_bpp,
 		}
 		break;
 	case LOCAL_I915_FORMAT_MOD_Yf_TILED:
+	case LOCAL_I915_FORMAT_MOD_Yf_TILED_CCS:
 		igt_require_intel(fd);
 		switch (fb_bpp) {
 		case 8:
@@ -198,8 +200,10 @@ uint64_t igt_fb_mod_to_tiling(uint64_t modifier)
 	case LOCAL_I915_FORMAT_MOD_X_TILED:
 		return I915_TILING_X;
 	case LOCAL_I915_FORMAT_MOD_Y_TILED:
+	case LOCAL_I915_FORMAT_MOD_Y_TILED_CCS:
 		return I915_TILING_Y;
 	case LOCAL_I915_FORMAT_MOD_Yf_TILED:
+	case LOCAL_I915_FORMAT_MOD_Yf_TILED_CCS:
 		return I915_TILING_Yf;
 	default:
 		igt_assert(0);
@@ -1128,7 +1132,9 @@ static cairo_surface_t *get_cairo_surface(int fd, struct igt_fb *fb)
 {
 	if (fb->cairo_surface == NULL) {
 		if (fb->tiling == LOCAL_I915_FORMAT_MOD_Y_TILED ||
-		    fb->tiling == LOCAL_I915_FORMAT_MOD_Yf_TILED)
+		    fb->tiling == LOCAL_I915_FORMAT_MOD_Y_TILED_CCS ||
+		    fb->tiling == LOCAL_I915_FORMAT_MOD_Yf_TILED ||
+		    fb->tiling == LOCAL_I915_FORMAT_MOD_Yf_TILED_CCS)
 			create_cairo_surface__blit(fd, fb);
 		else
 			create_cairo_surface__gtt(fd, fb);
