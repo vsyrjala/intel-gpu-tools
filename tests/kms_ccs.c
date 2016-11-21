@@ -42,7 +42,9 @@ typedef struct {
 	igt_output_t *output;
 	enum pipe pipe;
 	uint32_t devid;
+	int xoff, yoff;
 	int x, y;
+	double angle, radius;
 } data_t;
 
 static void render_fb(data_t *data, struct igt_fb *fb)
@@ -83,10 +85,7 @@ static void render_ccs(data_t *data, uint32_t gem_handle,
 	for (x = 0 ; x < w; x++) {
 		int y = x * h / w;
 		*ccs_ptr(ptr, x, y, stride) = 0x3c;
-	}
-	for (x = 0 ; x < w; x++) {
-		int y = h - x * h / w;
-		*ccs_ptr(ptr, x, y, stride) = 0xc3;
+		*ccs_ptr(ptr, x, h - y, stride) = 0xc3;
 	}
 
 	munmap(ptr, size);
@@ -147,7 +146,6 @@ static bool prepare_crtc(data_t *data)
 {
 	drmModeModeInfo *mode;
 	igt_display_t *display = &data->display;
-	igt_plane_t *primary;
 
 	/* select the pipe we want to use */
 	igt_output_set_pipe(data->output, data->pipe);
@@ -163,18 +161,29 @@ static bool prepare_crtc(data_t *data)
 
 	create_fb(data, mode, &data->fb);
 
-	data->x = (data->fb.width - mode->hdisplay) / 2;
-	data->y = (data->fb.height - mode->vdisplay) / 2;
+	data->xoff = (data->fb.width  - mode->hdisplay) / 2;
+	data->yoff = (data->fb.height  - mode->vdisplay) / 2;
+	data->radius = min(mode->hdisplay, mode->vdisplay) / 2;
+	data->angle = 0.0;
+
+	return true;
+}
+
+static void pan_around(data_t *data)
+{
+	igt_display_t *display = &data->display;
+	igt_plane_t *primary;
+
+	data->angle += M_PI / 500.0;
+	data->x = data->xoff + sin(data->angle) * data->radius;
+	data->y = data->yoff + cos(data->angle) * data->radius;
 
 	primary = igt_output_get_plane(data->output, IGT_PLANE_PRIMARY);
 	igt_plane_set_fb(primary, &data->fb);
 	igt_fb_set_position(&data->fb, primary, data->x, data->y);
-
 	igt_display_commit(display);
 
 	igt_debug_wait_for_keypress("ccs");
-
-	return true;
 }
 
 static void cleanup_crtc(data_t *data)
@@ -194,6 +203,7 @@ static void test(data_t *data)
 {
 	igt_display_t *display = &data->display;
 	int valid_tests = 0;
+	int i;
 
 	for_each_connected_output(display, data->output) {
 		if (!prepare_crtc(data))
@@ -205,6 +215,9 @@ static void test(data_t *data)
 			 igt_subtest_name(),
 			 kmstest_pipe_name(data->pipe),
 			 igt_output_name(data->output));
+
+		for (i = 0; i < 1000; i++)
+			pan_around(data);
 
 		igt_info("\n%s on pipe %s, connector %s: PASSED\n\n",
 			 igt_subtest_name(),
