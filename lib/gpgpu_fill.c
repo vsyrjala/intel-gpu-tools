@@ -138,7 +138,7 @@ gen7_fill_curbe_buffer_data(struct intel_batchbuffer *batch, uint8_t color)
 
 static uint32_t
 gen7_fill_surface_state(struct intel_batchbuffer *batch,
-			struct igt_buf *buf,
+			const struct igt_buf *buf,
 			uint32_t format,
 			int is_dst)
 {
@@ -187,7 +187,7 @@ gen7_fill_surface_state(struct intel_batchbuffer *batch,
 
 static uint32_t
 gen8_fill_surface_state(struct intel_batchbuffer *batch,
-			struct igt_buf *buf,
+			const struct igt_buf *buf,
 			uint32_t format,
 			int is_dst)
 {
@@ -239,7 +239,7 @@ gen8_fill_surface_state(struct intel_batchbuffer *batch,
 
 static uint32_t
 gen7_fill_binding_table(struct intel_batchbuffer *batch,
-			struct igt_buf *dst)
+			const struct igt_buf *dst)
 {
 	uint32_t *binding_table, offset;
 
@@ -253,7 +253,7 @@ gen7_fill_binding_table(struct intel_batchbuffer *batch,
 
 static uint32_t
 gen8_fill_binding_table(struct intel_batchbuffer *batch,
-			struct igt_buf *dst)
+			const struct igt_buf *dst)
 {
 	uint32_t *binding_table, offset;
 
@@ -278,7 +278,7 @@ gen7_fill_gpgpu_kernel(struct intel_batchbuffer *batch,
 }
 
 static uint32_t
-gen7_fill_interface_descriptor(struct intel_batchbuffer *batch, struct igt_buf *dst,
+gen7_fill_interface_descriptor(struct intel_batchbuffer *batch, const struct igt_buf *dst,
 			       const uint32_t kernel[][4], size_t size)
 {
 	struct gen7_interface_descriptor_data *idd;
@@ -309,7 +309,7 @@ gen7_fill_interface_descriptor(struct intel_batchbuffer *batch, struct igt_buf *
 }
 
 static uint32_t
-gen8_fill_interface_descriptor(struct intel_batchbuffer *batch, struct igt_buf *dst,
+gen8_fill_interface_descriptor(struct intel_batchbuffer *batch, const struct igt_buf *dst,
 			       const uint32_t kernel[][4], size_t size)
 {
 	struct gen8_interface_descriptor_data *idd;
@@ -665,7 +665,7 @@ gen8_emit_gpgpu_walk(struct intel_batchbuffer *batch,
 
 void
 gen7_gpgpu_fillfunc(struct intel_batchbuffer *batch,
-		    struct igt_buf *dst,
+		    const struct igt_buf *dst,
 		    unsigned x, unsigned y,
 		    unsigned width, unsigned height,
 		    uint8_t color)
@@ -713,7 +713,7 @@ gen7_gpgpu_fillfunc(struct intel_batchbuffer *batch,
 
 void
 gen8_gpgpu_fillfunc(struct intel_batchbuffer *batch,
-		    struct igt_buf *dst,
+		    const struct igt_buf *dst,
 		    unsigned x, unsigned y,
 		    unsigned width, unsigned height,
 		    uint8_t color)
@@ -761,7 +761,7 @@ gen8_gpgpu_fillfunc(struct intel_batchbuffer *batch,
 
 void
 gen9_gpgpu_fillfunc(struct intel_batchbuffer *batch,
-		    struct igt_buf *dst,
+		    const struct igt_buf *dst,
 		    unsigned x, unsigned y,
 		    unsigned width, unsigned height,
 		    uint8_t color)

@@ -29,21 +29,21 @@
 
 void
 gen7_gpgpu_fillfunc(struct intel_batchbuffer *batch,
-		    struct igt_buf *dst,
+		    const struct igt_buf *dst,
 		    unsigned x, unsigned y,
 		    unsigned width, unsigned height,
 		    uint8_t color);
 
 void
 gen8_gpgpu_fillfunc(struct intel_batchbuffer *batch,
-		    struct igt_buf *dst,
+		    const struct igt_buf *dst,
 		    unsigned x, unsigned y,
 		    unsigned width, unsigned height,
 		    uint8_t color);
 
 void
 gen9_gpgpu_fillfunc(struct intel_batchbuffer *batch,
-		    struct igt_buf *dst,
+		    const struct igt_buf *dst,
 		    unsigned x, unsigned y,
 		    unsigned width, unsigned height,
 		    uint8_t color);

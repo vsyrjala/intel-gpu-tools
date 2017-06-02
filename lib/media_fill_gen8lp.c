@@ -86,7 +86,7 @@ gen8_fill_curbe_buffer_data(struct intel_batchbuffer *batch,
 
 static uint32_t
 gen8_fill_surface_state(struct intel_batchbuffer *batch,
-			struct igt_buf *buf,
+			const struct igt_buf *buf,
 			uint32_t format,
 			int is_dst)
 {
@@ -137,7 +137,7 @@ gen8_fill_surface_state(struct intel_batchbuffer *batch,
 
 static uint32_t
 gen8_fill_binding_table(struct intel_batchbuffer *batch,
-			struct igt_buf *dst)
+			const struct igt_buf *dst)
 {
 	uint32_t *binding_table, offset;
 
@@ -162,7 +162,7 @@ gen8_fill_media_kernel(struct intel_batchbuffer *batch,
 }
 
 static uint32_t
-gen8_fill_interface_descriptor(struct intel_batchbuffer *batch, struct igt_buf *dst)
+gen8_fill_interface_descriptor(struct intel_batchbuffer *batch, const struct igt_buf *dst)
 {
 	struct gen8_interface_descriptor_data *idd;
 	uint32_t offset;
@@ -327,7 +327,7 @@ gen8lp_emit_media_objects(struct intel_batchbuffer *batch,
 
 void
 gen8lp_media_fillfunc(struct intel_batchbuffer *batch,
-		struct igt_buf *dst,
+		const struct igt_buf *dst,
 		unsigned x, unsigned y,
 		unsigned width, unsigned height,
 		uint8_t color)
