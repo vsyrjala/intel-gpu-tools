@@ -132,7 +132,7 @@ int main(int argc, char **argv)
 {
 	data_t data = {0, };
 	struct intel_batchbuffer *batch = NULL;
-	struct igt_buf src, dst;
+	struct igt_buf src, dst, dst2;
 	igt_render_copyfunc_t render_copy = NULL;
 	int opt_dump_aub = igt_aub_dump_enabled();
 
@@ -156,13 +156,16 @@ int main(int argc, char **argv)
 
 	scratch_buf_init(&data, &src, WIDTH, HEIGHT, STRIDE, SRC_COLOR);
 	scratch_buf_init(&data, &dst, WIDTH, HEIGHT, STRIDE, DST_COLOR);
+	scratch_buf_init(&data, &dst2, WIDTH, HEIGHT, STRIDE, DST_COLOR);
 
 	scratch_buf_check(&data, &src, WIDTH / 2, HEIGHT / 2, SRC_COLOR);
 	scratch_buf_check(&data, &dst, WIDTH / 2, HEIGHT / 2, DST_COLOR);
+	scratch_buf_check(&data, &dst2, WIDTH / 2, HEIGHT / 2, DST_COLOR);
 
 	if (opt_dump_png) {
 		scratch_buf_write_to_png(&src, "source.png");
 		scratch_buf_write_to_png(&dst, "destination.png");
+		scratch_buf_write_to_png(&dst2, "destination2.png");
 	}
 
 	if (opt_dump_aub) {
@@ -182,12 +185,21 @@ int main(int argc, char **argv)
 	render_copy(batch, NULL,
 		    &src, 0, 0, WIDTH, HEIGHT,
 		    &dst, WIDTH / 2, HEIGHT / 2);
+	render_copy(batch, NULL,
+		    &src, 0, 0, WIDTH, HEIGHT,
+		    &dst2, WIDTH / 2, HEIGHT / 2);
 
-	if (opt_dump_png)
+	if (opt_dump_png) {
 		scratch_buf_write_to_png(&dst, "result.png");
+		scratch_buf_write_to_png(&dst2, "result2.png");
+	}
 
 	if (opt_dump_aub) {
 		drm_intel_gem_bo_aub_dump_bmp(dst.bo,
+			0, 0, WIDTH, HEIGHT,
+			AUB_DUMP_BMP_FORMAT_ARGB_8888,
+			STRIDE, 0);
+		drm_intel_gem_bo_aub_dump_bmp(dst2.bo,
 			0, 0, WIDTH, HEIGHT,
 			AUB_DUMP_BMP_FORMAT_ARGB_8888,
 			STRIDE, 0);
@@ -212,6 +224,8 @@ int main(int argc, char **argv)
 	} else {
 		scratch_buf_check(&data, &dst, 10, 10, DST_COLOR);
 		scratch_buf_check(&data, &dst, WIDTH - 10, HEIGHT - 10, SRC_COLOR);
+		scratch_buf_check(&data, &dst2, 10, 10, DST_COLOR);
+		scratch_buf_check(&data, &dst2, WIDTH - 10, HEIGHT - 10, SRC_COLOR);
 	}
 
 	igt_exit();
