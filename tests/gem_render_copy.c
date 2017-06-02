@@ -115,6 +115,29 @@ scratch_buf_check(data_t *data, struct igt_buf *buf, int x, int y,
 		     color, val, x, y);
 }
 
+static void
+scratch_buf_check_all(data_t *data, struct igt_buf *buf)
+{
+	uint32_t val;
+	int i, j;
+
+	gem_read(data->drm_fd, buf->bo->handle, 0,
+		 data->linear, sizeof(data->linear));
+
+	for (i = 0; i < WIDTH; i++) {
+		for (j = 0; j < HEIGHT; j++) {
+			uint32_t color = DST_COLOR;
+			val = data->linear[j * WIDTH + i];
+			if (j >= HEIGHT/2 && i >= WIDTH/2)
+				color = SRC_COLOR;
+
+			igt_assert_f(val == color,
+				     "Expected 0x%08x, found 0x%08x at (%d,%d)\n",
+				     color, val, i, j);
+		}
+	}
+}
+
 static int opt_handler(int opt, int opt_index, void *data)
 {
 	if (opt == 'd') {
@@ -205,22 +228,8 @@ int main(int argc, char **argv)
 			STRIDE, 0);
 		drm_intel_bufmgr_gem_set_aub_dump(data.bufmgr, false);
 	} else if (check_all_pixels) {
-		uint32_t val;
-		int i, j;
-		gem_read(data.drm_fd, dst.bo->handle, 0,
-			 data.linear, sizeof(data.linear));
-		for (i = 0; i < WIDTH; i++) {
-			for (j = 0; j < HEIGHT; j++) {
-				uint32_t color = DST_COLOR;
-				val = data.linear[j * WIDTH + i];
-				if (j >= HEIGHT/2 && i >= WIDTH/2)
-					color = SRC_COLOR;
-
-				igt_assert_f(val == color,
-					     "Expected 0x%08x, found 0x%08x at (%d,%d)\n",
-					     color, val, i, j);
-			}
-		}
+		scratch_buf_check_all(&data, &dst);
+		scratch_buf_check_all(&data, &dst2);
 	} else {
 		scratch_buf_check(&data, &dst, 10, 10, DST_COLOR);
 		scratch_buf_check(&data, &dst, WIDTH - 10, HEIGHT - 10, SRC_COLOR);
