@@ -901,7 +901,7 @@ int main(int argc, char *argv[])
 	devid = intel_get_pci_device()->device_id;
 
 	/* Just to make sure we open the right debugfs files */
-	drm_fd = drm_open_driver_master(DRIVER_INTEL);
+	drm_fd = __drm_open_driver(DRIVER_INTEL);
 
 	if (IS_VALLEYVIEW(devid) || IS_CHERRYVIEW(devid)) {
 		display_base = 0x180000;
