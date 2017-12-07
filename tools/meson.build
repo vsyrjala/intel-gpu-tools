@@ -26,6 +26,7 @@ tools_progs = [
 	'intel_gpu_top',
 	'intel_gtt',
 	'intel_guc_logger',
+	'intel_i2c_slave',
 	'intel_infoframes',
 	'intel_lid',
 	'intel_opregion_decode',
