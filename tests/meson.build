@@ -103,6 +103,7 @@ test_progs = [
 	'gem_reloc_overflow',
 	'gem_reloc_vs_gpu',
 	'gem_render_copy',
+	'gem_render_copy_ccs',
 	'gem_render_copy_redux',
 	'gem_render_linear_blits',
 	'gem_render_tiled_blits',
