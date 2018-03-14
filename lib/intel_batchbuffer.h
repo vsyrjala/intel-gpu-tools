@@ -218,6 +218,10 @@ struct igt_buf {
     uint32_t tiling;
     uint32_t *data;
     uint32_t size;
+    struct {
+        uint32_t offset;
+        uint32_t stride;
+    } aux;
     /*< private >*/
     unsigned num_tiles;
 };
