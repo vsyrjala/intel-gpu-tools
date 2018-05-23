@@ -407,7 +407,6 @@ __test_scaler_with_clipping_clamping_scenario(data_t *d, drmModeModeInfo *mode,
 					    mode->vdisplay + 200);
 	igt_plane_set_size(d->plane2, mode->hdisplay + 100,
 					    mode->vdisplay + 100);
-	igt_display_commit2(&d->display, COMMIT_ATOMIC);
 
 	/*
 	 * Can't guarantee that the clipped coordinates are
