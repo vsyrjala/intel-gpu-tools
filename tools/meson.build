@@ -20,6 +20,7 @@ tools_progs = [
 	'intel_display_poller',
 	'intel_forcewaked',
 	'intel_gpu_frequency',
+	'intel_gtt_dump',
 	'intel_firmware_decode',
 	'intel_gpu_time',
 	'intel_gtt',
