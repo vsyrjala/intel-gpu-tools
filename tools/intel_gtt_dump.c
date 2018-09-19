@@ -266,26 +266,39 @@ static void dump_png(struct data *data, const char *filename)
 	cairo_surface_destroy(surface);
 }
 
-static uint32_t get_offset(struct data *data,
-			   unsigned int x, unsigned int y)
+static uint32_t calc_offset(struct data *data,
+			    unsigned int *x, unsigned int *y)
 {
-	uint32_t offset = data->offset;
-
 	if (data->tiling != I915_TILING_NONE) {
-		offset += y / data->tile_height * tile_row_size(data) +
-			x / data->tile_width * data->tile_size;
-	} else {
-		offset += y * data->stride + x * data->cpp;
-	}
+		unsigned int ty = *y / data->tile_height;
+		unsigned int tx = *x / data->tile_width;
 
-	return offset;
+		*y %= data->tile_height;
+		*x %= data->tile_width;
+
+		return ty * tile_row_size(data) + tx * data->tile_size;
+	} else {
+		uint32_t offset = *y * data->stride + *x * data->cpp;
+		uint32_t alignemnet = data->tile_size - 1;
+
+		*y = (offset & alignemnet) / data->stride;
+		*x = ((offset & alignemnet) - *y * data->stride) / data->cpp;
+
+		return offset & ~alignemnet;
+	}
 }
 
-static void *map_tile(struct data *data, unsigned int x, unsigned int y)
+static void *map_tile(struct data *data, uint32_t offset)
 {
-	uint32_t offset = get_offset(data, x, y);
-	uint64_t pte = read_pte(data, offset);
-	uint64_t phys_addr = pte_decode(data, pte);
+	uint64_t pte;
+	uint64_t phys_addr;
+
+	offset += data->offset;
+
+	assert((offset & (data->tile_size - 1)) == 0);
+
+	pte = read_pte(data, offset);
+	phys_addr = pte_decode(data, pte);
 
 	return mmap(NULL, data->tile_size, PROT_READ, MAP_SHARED, data->devmem_fd, phys_addr);
 }
@@ -295,41 +308,45 @@ static void unmap_tile(struct data *data, void *ptr)
 	munmap(ptr, data->tile_size);
 }
 
-static void read_tile(struct data *data, unsigned int x, unsigned int y)
-{
-	unsigned int tw, th, tx, ty;
-	void *map, *src, *dst;
-
-	tw = min(data->width - x, data->tile_width);
-	th = min(data->height - y, data->tile_height);
-
-	tx = x & (data->tile_width - 1);
-	ty = y & (data->tile_height - 1);
-	x -= tx;
-	y -= ty;
-
-	dst = data->image + (y * data->width + x) * data->cpp;
-
-	map = src = map_tile(data, x, y);
-	assert(map != (void *) -1);
-
-	/* FIXME linear memcpy ain't right with tiling */
-	for (; ty < th; ty++) {
-		memcpy(dst + tx * data->cpp,
-		       src + tx * data->cpp,
-		       tw * data->cpp);
-		src += data->tile_width * data->cpp;
-		dst += data->width * data->cpp;
-	}
-
-	unmap_tile(data, map);
-}
-
 static void read_tiles(struct data *data)
 {
-	for (unsigned int y = data->y; y < data->height; y += data->tile_height) {
-		for (unsigned int x = data->x; x < data->width; x += data->tile_width)
-			read_tile(data, x, y);
+	for (unsigned int y = 0; y < data->height;) {
+		unsigned int tw, th;
+
+		for (unsigned int x = 0; x < data->width;) {
+			unsigned int tx, ty;
+			void *map, *src, *dst;
+			uint32_t offset;
+
+			dst = data->image + (y * data->width + x) * data->cpp;
+
+			tx = data->x + x;
+			ty = data->y + y;
+
+			offset = calc_offset(data, &tx, &ty);
+
+			tw = min(data->width - x, data->tile_width - tx);
+			th = min(data->height - y, data->tile_height - ty);
+
+			map = src = map_tile(data, offset);
+			assert(map != (void*) -1);
+
+			src += ty * data->tile_width * data->cpp;
+
+			/* FIXME linear memcpy ain't right with tiling */
+			for (; ty < th; ty++) {
+				memcpy(dst, src + tx * data->cpp,
+				       tw * data->cpp);
+				src += data->tile_width * data->cpp;
+				dst += data->width * data->cpp;
+			}
+
+			unmap_tile(data, map);
+
+			x += tw;
+		}
+
+		y += th;
 	}
 }
 
