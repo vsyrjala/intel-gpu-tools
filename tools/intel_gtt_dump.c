@@ -414,6 +414,9 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	if (!data.offset)
+		usage(argv[0]);
+
 	data.pci_dev = intel_get_pci_device();
 	data.devid = data.pci_dev->device_id;
 	data.gen = intel_gen(data.devid);
