@@ -22,6 +22,7 @@
  *
  */
 
+#include <assert.h>
 #include <inttypes.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -151,7 +152,7 @@ static void map_gtt(struct data *data)
 	error = pci_device_map_range(data->pci_dev,
 				     data->pci_dev->regions[gtt_bar].base_addr + gtt_offset,
 				     gtt_size, 0, &data->gtt);
-	igt_assert_eq(error, 0);
+	assert(error == 0);
 }
 
 static uint64_t gen2_pte_decode(uint32_t pte)
@@ -230,11 +231,11 @@ static void update_tile_dims(struct data *data)
 			data->tile_width = 256;
 			break;
 		default:
-			igt_assert(false);
+			assert(false);
 		}
 		break;
 	default:
-		igt_assert(false);
+		assert(false);
 	}
 
 	data->tile_height = data->tile_size / data->tile_width;
@@ -261,7 +262,7 @@ static void dump_png(struct data *data, const char *filename)
 						      data->height,
 						      data->width * data->cpp);
 	ret = cairo_surface_write_to_png(surface, filename);
-	igt_assert(ret == CAIRO_STATUS_SUCCESS);
+	assert(ret == CAIRO_STATUS_SUCCESS);
 	cairo_surface_destroy(surface);
 }
 
@@ -310,7 +311,7 @@ static void read_tile(struct data *data, unsigned int x, unsigned int y)
 	dst = data->image + (y * data->width + x) * data->cpp;
 
 	map = src = map_tile(data, x, y);
-	igt_assert_neq(map, -1);
+	assert(map != (void *) -1);
 
 	/* FIXME linear memcpy ain't right with tiling */
 	for (; ty < th; ty++) {
@@ -420,10 +421,10 @@ int main(int argc, char *argv[])
 	update_tile_dims(&data);
 
 	data.image = calloc(data.width * data.height, data.cpp);
-	igt_assert(data.image);
+	assert(data.image);
 
 	data.devmem_fd = open("/dev/mem", O_RDONLY);
-	igt_assert(data.devmem_fd >= 0);
+	assert(data.devmem_fd >= 0);
 
 	map_gtt(&data);
 
