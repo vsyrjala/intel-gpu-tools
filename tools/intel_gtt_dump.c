@@ -53,6 +53,8 @@ struct data {
 	uint32_t devid;
 	int gen;
 
+	int pipe, plane;
+
 	int devmem_fd;
 	void *gtt;
 	void *image;
@@ -117,11 +119,7 @@ static unsigned int intel_gtt_size(struct data *data)
 		};
 		int gtt_size;
 
-		intel_register_access_init(data->pci_dev, 0, -1);
-
 		gtt_size = (INREG(PGETBL_CTL) & PGETBL_SIZE_MASK) >> 1;
-
-		intel_register_access_fini();
 
 		return gtt_size_kib[gtt_size] * 1024;
 	}
@@ -350,9 +348,235 @@ static void read_tiles(struct data *data)
 	}
 }
 
+static uint32_t skl_plane_read(struct data *data, uint32_t reg)
+{
+	return INREG(reg + 0x1000 * data->pipe + 0x100 * data->plane);
+}
+
+static bool skl_plane_init(struct data *data)
+{
+	uint32_t tmp, ctl, format_mask;
+
+	ctl = skl_plane_read(data, 0x70180);
+	format_mask = data->gen >= 11 ? (0x1f << 23) : (0xf << 24);
+
+	if ((ctl & (1 << 31)) == 0) {
+		fprintf(stderr, "Plane not enabled (PLANE_CTL=0x%08x\n", ctl);
+		return false;
+	}
+
+	switch (ctl & (0x3 << 0)) {
+	case 0 << 0:
+	case 2 << 0:
+		break;
+	default:
+		fprintf(stderr, "Unknown rotation (PLANE_CTL=0x%08x\n", ctl);
+		return false;
+	}
+
+	switch (ctl & format_mask) {
+	case 0x2 << 24:
+	case 0x4 << 24:
+	case 0x8 << 24:
+		data->cpp = 4;
+		break;
+	case 0x0 << 24:
+	case 0xe << 24:
+		data->cpp = 2;
+		break;
+	case 0x1 << 24:
+	case 0xc << 24:
+		data->cpp = 1;
+		break;
+	default:
+		fprintf(stderr, "Unknown pixel format (PLANE_CTL=0x%08x\n", ctl);
+		return false;
+	}
+
+	switch (ctl & (0x7 << 10)) {
+	case 0 << 10:
+		data->tiling = I915_TILING_NONE;
+		break;
+	case 1 << 10:
+		data->tiling = I915_TILING_X;
+		break;
+	case 4 << 10:
+		data->tiling = I915_TILING_Y;
+		break;
+	case 5 << 10:
+		data->tiling = I915_TILING_Yf;
+		break;
+	default:
+		fprintf(stderr, "Unknown tiling (PLANE_CTL=0x%08x\n", ctl);
+		return false;
+	}
+
+	update_tile_dims(data);
+
+	data->stride = skl_plane_read(data, 0x70188);
+
+	if (data->tiling == I915_TILING_NONE)
+		data->stride *= 64;
+	else
+		data->stride *= data->tile_width * data->cpp;
+
+	data->offset = skl_plane_read(data, 0x7019c);
+
+	tmp = skl_plane_read(data, 0x70190);
+	data->width = (tmp & 0xffff) + 1;
+	data->height = ((tmp >> 16) & 0xffff) + 1;
+
+	tmp = skl_plane_read(data, 0x701a4);
+	data->x = tmp & 0xffff;
+	data->y = (tmp >> 16) & 0xffff;
+
+	return true;
+}
+
+static uint32_t display_base;
+
+static uint32_t i9xx_pipe_read(struct data *data, uint32_t reg)
+{
+	return INREG(display_base + reg + 0x1000 * data->pipe);
+}
+
+static uint32_t i9xx_plane_read(struct data *data, uint32_t reg)
+{
+	return INREG(display_base + reg + 0x1000 * data->plane);
+}
+
+static bool i9xx_plane_use_tileoff(struct data *data)
+{
+	return IS_BROADWELL(data->devid) || IS_HASWELL(data->devid) ||
+		(data->gen >= 4 && data->tiling != I915_TILING_NONE);
+}
+
+static bool i9xx_plane_init(struct data *data)
+{
+	uint32_t tmp, ctl;
+	int pipe;
+
+	ctl = i9xx_plane_read(data, 0x70180);
+
+	if ((ctl & (1 << 31)) == 0) {
+		fprintf(stderr, "Plane not enabled (PLANE_CTL=0x%08x\n", ctl);
+		return false;
+	}
+
+	if (data->gen < 5) {
+		switch (ctl & (0x3 << 24)) {
+		case 0 << 24:
+			pipe = 0;
+			break;
+		case 1 << 24:
+			pipe = 1;
+			break;
+		default:
+			fprintf(stderr, "Unknown pipe selected (PLANE_CTL=0x%08x\n", ctl);
+			return false;
+		}
+	} else {
+		pipe = data->plane;
+	}
+
+	if (data->pipe < 0)
+		data->pipe = pipe;
+
+	if (data->pipe != pipe) {
+		fprintf(stderr, "Incorrect pipe specified via command line (PLANE_CTL=0x%08x\n", ctl);
+		return false;
+	}
+
+	switch (ctl & (0xf << 26)) {
+	case 0x6 << 26:
+	case 0x7 << 26:
+	case 0x8 << 26:
+	case 0x9 << 26:
+	case 0xa << 26:
+	case 0xc << 26:
+	case 0xe << 26:
+	case 0xf << 26:
+		data->cpp = 4;
+		break;
+	case 0x0 << 26:
+	case 0x3 << 26:
+	case 0x4 << 26:
+	case 0x5 << 26:
+		data->cpp = 2;
+		break;
+	case 0x2 << 26:
+		data->cpp = 1;
+		break;
+	default:
+		fprintf(stderr, "Unknown pixel format (PLANE_CTL=0x%08x\n", ctl);
+		return false;
+	}
+
+	if (ctl & (1 << 10))
+		data->tiling = I915_TILING_X;
+	else
+		data->tiling = I915_TILING_NONE;
+
+	update_tile_dims(data);
+
+	data->stride = i9xx_plane_read(data, 0x70188);
+
+	if (data->gen >= 4)
+		data->offset = i9xx_plane_read(data, 0x7019c);
+
+	if (i9xx_plane_use_tileoff(data)) {
+		tmp = i9xx_plane_read(data, 0x701a4);
+		data->x = tmp & 0xffff;
+		data->y = (tmp >> 16) & 0xffff;
+	} else {
+		tmp = i9xx_plane_read(data, 0x70184);
+		data->y = tmp / data->stride;
+		data->x = tmp % data->stride / data->cpp;
+	}
+
+	if (IS_CHERRYVIEW(data->devid) && data->pipe == 1)
+		tmp = i9xx_pipe_read(data, 0x60a0c);
+	else if (data->gen < 4)
+		tmp = i9xx_plane_read(data, 0x70190);
+	else
+		tmp = 0;
+	if (!tmp)
+		tmp = i9xx_pipe_read(data, 0x6001c);
+	data->width = (tmp & 0xffff) + 1;
+	data->height = ((tmp >> 16) & 0xffff) + 1;
+
+	return true;
+}
+
+static int num_pipes(struct data *data)
+{
+	if (data->gen >= 7 || !IS_VALLEYVIEW(data->devid))
+		return 3;
+	else if (data->gen >= 3 || IS_MOBILE(data->devid))
+		return 2;
+	else
+		return 1;
+}
+
+static int num_planes(struct data *data)
+{
+	if (data->gen >= 11)
+		return 7;
+	else if (data->gen >= 10 || IS_GEMINILAKE(data->devid))
+		return 4;
+	else if (IS_BROXTON(data->devid))
+		return data->pipe != 2 ? 3 : 2;
+	else if (data->gen >= 5 || IS_G4X(data->devid))
+		return num_pipes(data);
+	else if (data->gen >= 3 || IS_MOBILE(data->devid))
+		return 3;
+	else
+		return 1;
+}
+
 static void usage(const char *name)
 {
-	printf("Usage: %s [-f <filename][-w <width][-h height][-c <cpp>][-t <tiling>][-s <stride>][-o <offset]\n",
+	printf("Usage: %s [-f <filename][-w <width][-h height][-c <cpp>][-t <tiling>][-s <stride>][-o <offset][-p <pipe>][-P <plane>]\n",
 	       name);
 	exit(1);
 }
@@ -368,8 +592,18 @@ int main(int argc, char *argv[])
 		.tiling = I915_TILING_NONE,
 		.tile_width = 4096,
 		.tile_height = 1,
+
+		.pipe = -1,
+		.plane = -1,
 	};
 	const char *filename = "gtt_dump.png";
+
+	data.pci_dev = intel_get_pci_device();
+	data.devid = data.pci_dev->device_id;
+	data.gen = intel_gen(data.devid);
+
+	if (IS_VALLEYVIEW(data.devid) || IS_CHERRYVIEW(data.devid))
+		display_base = 0x180000;
 
 	for (;;) {
 		int r;
@@ -381,9 +615,11 @@ int main(int argc, char *argv[])
 			{ .name = "height", .has_arg = true, .val = 'h', },
 			{ .name = "cpp", .has_arg = true, .val = 'c', },
 			{ .name = "filename", .has_arg = true, .val = 'f', },
+			{ .name = "pipe", .has_arg = true, .val = 'p', },
+			{ .name = "plane", .has_arg = true, .val = 'P', },
 		};
 
-		r = getopt_long(argc, argv, "o:t:s:w:h:c:f:", opts, NULL);
+		r = getopt_long(argc, argv, "o:t:s:w:h:c:f:p:P:", opts, NULL);
 		if (r == -1)
 			break;
 
@@ -426,17 +662,51 @@ int main(int argc, char *argv[])
 		case 'f':
 			filename = optarg;
 			break;
+		case 'p':
+			if (optarg[0] >= 'a')
+				data.pipe = optarg[0] - 'a';
+			else
+				data.pipe = optarg[0] - 'A';
+			break;
+		case 'P':
+			if (data.gen >= 9) {
+				data.plane = strtoul(optarg, NULL, 0);
+			} else {
+				if (optarg[0] >= 'a')
+					data.plane = optarg[0] - 'a';
+				else
+					data.plane = optarg[0] - 'A';
+			}
+			break;
 		default:
 			break;
 		}
 	}
 
+	intel_register_access_init(data.pci_dev, 0, -1);
+
+	if (data.gen >= 9) {
+		/* require both pipe and plane, or neither */
+		if ((data.pipe < 0) != (data.plane < 0))
+			usage(argv[0]);
+
+		if (data.pipe >= num_pipes(&data))
+			usage(argv[0]);
+		if (data.plane >= num_planes(&data))
+			usage(argv[0]);
+
+		if (data.plane >= 0 && !skl_plane_init(&data))
+			usage(argv[0]);
+	} else {
+		if (data.plane >= num_planes(&data))
+			usage(argv[0]);
+
+		if (data.plane >= 0 && !i9xx_plane_init(&data))
+			usage(argv[0]);
+	}
+
 	if (!data.offset)
 		usage(argv[0]);
-
-	data.pci_dev = intel_get_pci_device();
-	data.devid = data.pci_dev->device_id;
-	data.gen = intel_gen(data.devid);
 
 	update_tile_dims(&data);
 
@@ -447,6 +717,8 @@ int main(int argc, char *argv[])
 	assert(data.devmem_fd >= 0);
 
 	map_gtt(&data);
+
+	intel_register_access_fini();
 
 	read_tiles(&data);
 
