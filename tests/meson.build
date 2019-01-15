@@ -10,6 +10,7 @@ test_progs = [
 	'drm_import_export',
 	'drm_mm',
 	'drm_read',
+	'icl_plane_test',
 	'kms_3d',
 	'kms_addfb_basic',
 	'kms_atomic',
