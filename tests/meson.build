@@ -38,6 +38,8 @@ test_progs = [
 	'kms_invalid_dotclock',
 	'kms_lease',
 	'kms_legacy_colorkey',
+	'kms_lut',
+	'kms_lut_atomic',
 	'kms_mmap_write_crc',
 	'kms_panel_fitting',
 	'kms_pipe_b_c_ivb',
