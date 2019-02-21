@@ -222,12 +222,9 @@ static void clean_pipe(data_t *data)
 	igt_remove_fb(data->drm_fd, &data->fb[0]);
 }
 
-static bool output_taken(data_t data[], int idx, int n_pipes)
+static bool output_taken(data_t data[], int idx)
 {
-	for (int i = 0; i < n_pipes; i++) {
-		if (idx == i)
-			continue;
-
+	for (int i = 0; i < idx; i++) {
 		if (data[idx].output == data[i].output)
 			return true;
 	}
@@ -242,7 +239,7 @@ prep_pipe(data_t data[], int idx, int n_pipes)
 	igt_display_require_output_on_pipe(data[idx].display, data[idx].pipe);
 
 	for_each_valid_output_on_pipe(data[idx].display, data[idx].pipe, data[idx].output) {
-		if (output_taken(data, idx, n_pipes))
+		if (output_taken(data, idx))
 			continue;
 
 		prep_output(&data[idx]);
@@ -277,15 +274,17 @@ static void test_pipes(data_t data[], int n_pipes)
 	igt_require(!data[0].is_atomic || data[0].display->is_atomic);
 
 	for_each_pipe(data[0].display, data[0].pipe) {
-		char str[128], *ptr = str;
+		char str[128];
+		char *ptr = str;
 		int len = sizeof(str);
 
+		ptr = snprintf_safe(ptr, &len, "pipe %s",
+				    kmstest_pipe_name(data[0].pipe));
 		for (int i = 1; i < n_pipes; i++) {
 			data[i] = data[0];
 			data[i].pipe = (data[i-1].pipe + 1) % data[i].display->n_pipes;
 
-			ptr = snprintf_safe(ptr, &len, "%spipe %s",
-					    i ? "+ " : "",
+			ptr = snprintf_safe(ptr, &len, " + pipe %s",
 					    kmstest_pipe_name(data[i].pipe));
 		}
 
