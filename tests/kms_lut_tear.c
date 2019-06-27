@@ -169,7 +169,11 @@ static void create_fb(data_t *data,
 
 	cr = igt_get_cairo_ctx(data->drm_fd, fb);
 
-	igt_paint_color(cr, 0, 0, width, height, r, g, b);
+	//igt_paint_color(cr, 0, 0, width, height, r, g, b);
+	igt_paint_color_gradient_range(cr, 0, 0, width, height/2,
+				       r, g, b, 0, 0, 0);
+	igt_paint_color_gradient_range(cr, 0, height/2, width, height/2,
+				       0, 0, 0, r, g, b);
 
 	/*
 	 * On i915 the LUT(s) are single buffered. The driver
@@ -243,12 +247,15 @@ prep_pipe(data_t data[], int idx, int n_pipes)
 			continue;
 
 		prep_output(&data[idx]);
-		break;
+		return;
 	}
+
+	igt_skip("no suitable output found for pipe %s\n",
+		 kmstest_pipe_name(data[idx].pipe));
 }
 
 __attribute__((format(printf, 3, 4)))
-static char *snprintf_safe(char *buf, int *len,
+static char *snprintf_cont(char *buf, int *len,
 			   const char *fmt, ...)
 {
 	va_list ap;
@@ -278,13 +285,13 @@ static void test_pipes(data_t data[], int n_pipes)
 		char *ptr = str;
 		int len = sizeof(str);
 
-		ptr = snprintf_safe(ptr, &len, "pipe %s",
+		ptr = snprintf_cont(ptr, &len, "pipe %s",
 				    kmstest_pipe_name(data[0].pipe));
 		for (int i = 1; i < n_pipes; i++) {
 			data[i] = data[0];
 			data[i].pipe = (data[i-1].pipe + 1) % data[i].display->n_pipes;
 
-			ptr = snprintf_safe(ptr, &len, " + pipe %s",
+			ptr = snprintf_cont(ptr, &len, " + pipe %s",
 					    kmstest_pipe_name(data[i].pipe));
 		}
 
@@ -314,6 +321,14 @@ igt_main
 		kmstest_set_vt_graphics_mode();
 
 		igt_display_require(data[0].display, data[0].drm_fd);
+	}
+
+	for (int n_pipes = 1; n_pipes < 4; n_pipes++) {
+		igt_subtest_f("%dx-lut-atomic", n_pipes) {
+			data[0].is_atomic = true;
+			for_each_pipe(data[0].display, data[0].pipe)
+				test_pipes(data, n_pipes);
+		}
 	}
 
 	for (int n_pipes = 1; n_pipes < 4; n_pipes++) {
