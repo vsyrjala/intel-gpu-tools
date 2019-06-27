@@ -171,9 +171,9 @@ static void create_fb(data_t *data,
 
 	//igt_paint_color(cr, 0, 0, width, height, r, g, b);
 	igt_paint_color_gradient_range(cr, 0, 0, width, height/2,
-				       r, g, b, 0, 0, 0);
-	igt_paint_color_gradient_range(cr, 0, height/2, width, height/2,
 				       0, 0, 0, r, g, b);
+	igt_paint_color_gradient_range(cr, 0, height/2, width, height/2,
+				       r, g, b, 0, 0, 0);
 
 	/*
 	 * On i915 the LUT(s) are single buffered. The driver
