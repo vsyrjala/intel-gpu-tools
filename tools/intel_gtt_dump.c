@@ -277,12 +277,12 @@ static uint32_t calc_offset(struct data *data,
 		return ty * tile_row_size(data) + tx * data->tile_size;
 	} else {
 		uint32_t offset = *y * data->stride + *x * data->cpp;
-		uint32_t alignemnet = data->tile_size - 1;
+		uint32_t align = data->tile_size - 1;
 
-		*y = (offset & alignemnet) / data->stride;
-		*x = ((offset & alignemnet) - *y * data->stride) / data->cpp;
+		*y = 0;
+		*x = (offset & align) / data->cpp;
 
-		return offset & ~alignemnet;
+		return offset & ~align;
 	}
 }
 
