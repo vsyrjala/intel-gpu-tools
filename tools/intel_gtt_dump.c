@@ -552,10 +552,16 @@ static bool i9xx_plane_init(struct data *data)
 		tmp = i9xx_plane_read(data, 0x70190);
 	else
 		tmp = 0;
-	if (!tmp)
+
+	if (!tmp) {
 		tmp = i9xx_pipe_read(data, 0x6001c);
-	data->width = (tmp & 0xffff) + 1;
-	data->height = ((tmp >> 16) & 0xffff) + 1;
+
+		data->height = (tmp & 0xffff) + 1;
+		data->width = ((tmp >> 16) & 0xffff) + 1;
+	} else {
+		data->width = (tmp & 0xffff) + 1;
+		data->height = ((tmp >> 16) & 0xffff) + 1;
+	}
 
 	return true;
 }
