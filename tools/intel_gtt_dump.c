@@ -583,6 +583,7 @@ static void usage(const char *name)
 
 int main(int argc, char *argv[])
 {
+	struct intel_mmio_data mmio_data;
 	struct data data = {
 		.stride = 1024 * 4,
 		.width = 1024,
@@ -683,7 +684,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	intel_register_access_init(data.pci_dev, 0, -1);
+	intel_register_access_init(&mmio_data, data.pci_dev, 0, -1);
 
 	if (data.gen >= 9) {
 		/* require both pipe and plane, or neither */
@@ -718,7 +719,7 @@ int main(int argc, char *argv[])
 
 	map_gtt(&data);
 
-	intel_register_access_fini();
+	intel_register_access_fini(&mmio_data);
 
 	read_tiles(&data);
 
