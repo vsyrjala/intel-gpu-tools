@@ -53,7 +53,7 @@ struct data {
 	uint32_t devid;
 	int gen;
 
-	int pipe, plane;
+	int pipe, plane, cursor;
 
 	int devmem_fd;
 	void *gtt;
@@ -253,6 +253,7 @@ static void dump_png(struct data *data, const char *filename)
 	cairo_status_t ret;
 
 	surface = cairo_image_surface_create_for_data(data->image,
+						      data->cursor >= 0 ? CAIRO_FORMAT_ARGB32 :
 						      data->cpp == 4 ? CAIRO_FORMAT_RGB24 :
 						      data->cpp == 2 ? CAIRO_FORMAT_RGB16_565 :
 						      CAIRO_FORMAT_A8,
@@ -566,6 +567,87 @@ static bool i9xx_plane_init(struct data *data)
 	return true;
 }
 
+static const uint8_t cursor_offsets_chv[] = {
+	0x00,
+	0xc0,
+	0xe0,
+};
+
+static uint32_t i9xx_cursor_read(struct data *data, uint32_t reg)
+{
+	if (data->gen < 7 || IS_VALLEYVIEW(data->devid) || IS_CHERRYVIEW(data->devid))
+		return INREG(display_base + reg + cursor_offsets_chv[data->cursor]);
+	else
+		return INREG(display_base + reg + 0x1000 * data->cursor);
+}
+
+static bool i9xx_cursor_init(struct data *data)
+{
+	uint32_t ctl;
+	int pipe;
+
+	ctl = i9xx_cursor_read(data, 0x70080);
+
+	if ((ctl & 0x27) == 0) {
+		fprintf(stderr, "Cursor not enabled (CUR_CTL=0x%08x\n", ctl);
+		return false;
+	}
+
+	if (data->gen < 5 && !IS_G4X(data->devid)) {
+		switch (ctl & (0x3 << 28)) {
+		case 0 << 28:
+			pipe = 0;
+			break;
+		case 1 << 28:
+			pipe = 1;
+			break;
+		default:
+			fprintf(stderr, "Unknown pipe selected (CUR_CTL=0x%08x\n", ctl);
+			return false;
+		}
+	} else {
+		pipe = data->cursor;
+	}
+
+	if (data->pipe < 0)
+		data->pipe = pipe;
+
+	if (data->pipe != pipe) {
+		fprintf(stderr, "Incorrect pipe specified via command line (CUR_CTL=0x%08x\n", ctl);
+		return false;
+	}
+
+	data->cpp = 4;
+
+	data->tiling = I915_TILING_NONE;
+
+	update_tile_dims(data);
+
+	switch (ctl & 0x27) {
+	case 0x22:
+		data->width = data->height = 128;
+		break;
+	case 0x23:
+		data->width = data->height = 256;
+		break;
+	case 0x27:
+		data->width = data->height = 64;
+		break;
+	default:
+		fprintf(stderr, "Unknown cursor size (CUR_CTL=0x%08x\n", ctl);
+		return false;
+	}
+
+	data->stride = data->cpp * data->width;
+
+	data->offset = i9xx_cursor_read(data, 0x70084);
+
+	data->x = 0;
+	data->y = 0;
+
+	return true;
+}
+
 static int num_pipes(struct data *data)
 {
 	if (data->gen >= 7 || !IS_VALLEYVIEW(data->devid))
@@ -594,7 +676,7 @@ static int num_planes(struct data *data)
 
 static void usage(const char *name)
 {
-	printf("Usage: %s [-f <filename][-w <width][-h height][-c <cpp>][-t <tiling>][-s <stride>][-o <offset][-p <pipe>][-P <plane>]\n",
+	printf("Usage: %s [-f <filename][-w <width][-h height][-c <cpp>][-t <tiling>][-s <stride>][-o <offset][-p <pipe>][-P <plane>][-C <cursor>]\n",
 	       name);
 	exit(1);
 }
@@ -614,6 +696,7 @@ int main(int argc, char *argv[])
 
 		.pipe = -1,
 		.plane = -1,
+		.cursor = -1,
 	};
 	const char *filename = "gtt_dump.png";
 
@@ -636,9 +719,10 @@ int main(int argc, char *argv[])
 			{ .name = "filename", .has_arg = true, .val = 'f', },
 			{ .name = "pipe", .has_arg = true, .val = 'p', },
 			{ .name = "plane", .has_arg = true, .val = 'P', },
+			{ .name = "cursor", .has_arg = true, .val = 'C', },
 		};
 
-		r = getopt_long(argc, argv, "o:t:s:w:h:c:f:p:P:", opts, NULL);
+		r = getopt_long(argc, argv, "o:t:s:w:h:c:f:p:P:C:", opts, NULL);
 		if (r == -1)
 			break;
 
@@ -697,12 +781,22 @@ int main(int argc, char *argv[])
 					data.plane = optarg[0] - 'A';
 			}
 			break;
+		case 'C':
+			if (optarg[0] >= 'a')
+				data.cursor = optarg[0] - 'a';
+			else
+				data.cursor = optarg[0] - 'A';
+			break;
 		default:
 			break;
 		}
 	}
 
 	intel_register_access_init(&mmio_data, data.pci_dev, 0, -1);
+
+	/* can't dump two things at the same time */
+	if (data.plane >= 0 && data.cursor >= 0)
+		usage(argv[0]);
 
 	if (data.gen >= 9) {
 		/* require both pipe and plane, or neither */
@@ -723,6 +817,11 @@ int main(int argc, char *argv[])
 		if (data.plane >= 0 && !i9xx_plane_init(&data))
 			usage(argv[0]);
 	}
+
+	if (data.cursor >= num_pipes(&data))
+		usage(argv[0]);
+	if (data.cursor >= 0 && !i9xx_cursor_init(&data))
+		usage(argv[0]);
 
 	if (!data.offset)
 		usage(argv[0]);
