@@ -153,17 +153,17 @@ static void map_gtt(struct data *data)
 	assert(error == 0);
 }
 
-static uint64_t gen2_pte_decode(uint32_t pte)
+static uint64_t gen2_pte_decode(uint64_t pte)
 {
 	return (pte & 0xfffff000) | ((pte & 0xf0) << (32 - 4));
 }
 
-static uint64_t gen6_pte_decode(uint32_t pte)
+static uint64_t gen6_pte_decode(uint64_t pte)
 {
 	return (pte & 0xfffff000) | ((pte & 0xff0) << (32 - 4));
 }
 
-static uint64_t hsw_pte_decode(uint32_t pte)
+static uint64_t hsw_pte_decode(uint64_t pte)
 {
 	return (pte & 0xfffff000) | ((pte & 0x7f0) << (32 - 4));
 }
