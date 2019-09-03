@@ -435,14 +435,26 @@ static bool skl_plane_init(struct data *data)
 
 static uint32_t display_base;
 
+static const uint16_t pipe_offsets_chv[] = {
+	0x0000,
+	0x1000,
+	0x4000,
+};
+
 static uint32_t i9xx_pipe_read(struct data *data, uint32_t reg)
 {
-	return INREG(display_base + reg + 0x1000 * data->pipe);
+	if (IS_CHERRYVIEW(data->devid))
+		return INREG(display_base + reg + pipe_offsets_chv[data->pipe]);
+	else
+		return INREG(display_base + reg + 0x1000 * data->pipe);
 }
 
 static uint32_t i9xx_plane_read(struct data *data, uint32_t reg)
 {
-	return INREG(display_base + reg + 0x1000 * data->plane);
+	if (IS_CHERRYVIEW(data->devid))
+		return INREG(display_base + reg + pipe_offsets_chv[data->plane]);
+	else
+		return INREG(display_base + reg + 0x1000 * data->plane);
 }
 
 static bool i9xx_plane_use_tileoff(struct data *data)
