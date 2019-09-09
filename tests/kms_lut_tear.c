@@ -50,14 +50,16 @@ static void set_atomic_lut(data_t *data, int lut_size,
 	igt_pipe_obj_replace_prop_blob(pipe_obj, IGT_CRTC_GAMMA_LUT, lut, lut_size * sizeof(lut[0]));
 }
 
+#define N_CRCS 20
+
 static void check_crcs(data_t *data)
 {
 	igt_crc_t *crcs;
 	int n_crcs;
 
-	n_crcs = igt_pipe_crc_get_crcs(data->pipe_crc, 10, &crcs);
+	n_crcs = igt_pipe_crc_get_crcs(data->pipe_crc, N_CRCS, &crcs);
 	igt_assert_lt(0, n_crcs);
-	igt_assert_lt(n_crcs, 10);
+	igt_assert_lt(n_crcs, N_CRCS);
 
 	for (int i = 0; i < n_crcs; i++)
 		igt_assert_crc_equal(&crcs[i], &data->ref_crc);
