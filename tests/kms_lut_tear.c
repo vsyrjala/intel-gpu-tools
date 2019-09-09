@@ -332,8 +332,8 @@ igt_main
 	}
 
 	for (int n_pipes = 1; n_pipes < 4; n_pipes++) {
-		igt_subtest_f("%dx-lut-atomic", n_pipes) {
-			data[0].is_atomic = true;
+		igt_subtest_f("%dx-lut-legacy", n_pipes) {
+			data[0].is_atomic = false;
 			for_each_pipe(data[0].display, data[0].pipe)
 				test_pipes(data, n_pipes);
 		}
