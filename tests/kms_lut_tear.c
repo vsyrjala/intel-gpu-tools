@@ -323,6 +323,7 @@ static int opt_handler(int opt, int opt_index, void *_data)
 
 static const struct option long_opts[] = {
 	{ .name = "duration", .has_arg = true, .val = 'd', },
+	{}
 };
 
 const char *help_str =
