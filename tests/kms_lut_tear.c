@@ -37,6 +37,7 @@ typedef struct {
 	igt_pipe_crc_t *pipe_crc;
 	igt_crc_t ref_crc;
 	struct igt_fb fb[2];
+	int duration;
 	enum pipe pipe;
 	bool is_atomic;
 } data_t;
@@ -300,17 +301,37 @@ static void test_pipes(data_t data[], int n_pipes)
 		for (int i = 0; i < n_pipes; i++)
 			prep_pipe(data, i, n_pipes);
 
-		test_lut(data, n_pipes, 2000);
+		test_lut(data, n_pipes, data->duration * 1000);
 
 		for (int i = 0; i < n_pipes; i++)
 			clean_pipe(&data[i]);
 	}
 }
 
+static int opt_handler(int opt, int opt_index, void *_data)
+{
+	data_t *data = _data;
+
+	switch (opt) {
+	case 'd':
+		data->duration = atoi(optarg);
+		break;
+	}
+
+	return IGT_OPT_HANDLER_SUCCESS;
+}
+
+static const struct option long_opts[] = {
+	{ .name = "duration", .has_arg = true, .val = 'd', },
+};
+
+const char *help_str =
+	"  --duration <seconds>\t\tSet the test duration (default: 2 seconds)\n";
+
 static igt_display_t display;
 static data_t data[3];
 
-igt_main
+igt_main_args("", long_opts, help_str, opt_handler, &data[0])
 {
 	igt_skip_on_simulation();
 
