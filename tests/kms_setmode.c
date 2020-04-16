@@ -500,6 +500,35 @@ static void check_timings(int crtc_idx, const drmModeModeInfo *kmode)
 		 expected, mean, stddev,
 		 100 * accuracy / mean, accuracy / line_time(kmode));
 
+	igt_info("linetime = %.2fus\n", line_time(kmode));
+
+	{
+		int lt = line_time(kmode);
+		int *count;
+		int first = lt * 4;
+		int last = 0;
+
+		count = calloc(lt * 4, sizeof(count[0]));
+
+		for (int i = 0; i < stats.n_values; i++) {
+			int64_t usec = stats.values_u64[i];
+			int64_t diff = usec - stats.mean;
+			int j = diff + lt * 2;
+
+			igt_assert_lte(0, j);
+			igt_assert_lt(j, lt * 4);
+
+			first = min(first, j);
+			last = max(last, j);
+			count[j]++;
+		}
+		for (int i = first; i <= last; i++) {
+			static const char *str = "##############################################################################################################################################################################################################";
+			igt_info("[%3d] %.*s\n", i - 2 * lt, count[i], str);
+		}
+		free(count);
+	}
+
 	/* 99.7% samples within one scanline on each side of mean */
 	igt_assert_f(accuracy < line_time(kmode),
 		     "vblank accuracy (%.3fus, %.1f%%) worse than a scanline (%.3fus)\n",
