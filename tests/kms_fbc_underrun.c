@@ -30,7 +30,7 @@
 typedef struct {
 	int drm_fd;
 	igt_display_t display;
-	struct igt_fb fb;
+	struct igt_fb fb[2];
 	igt_output_t *output;
 	igt_plane_t *plane;
 	enum pipe pipe;
@@ -47,24 +47,33 @@ static void prepare_crtc(data_t *data)
 	data->plane = igt_output_get_plane_type(data->output, DRM_PLANE_TYPE_PRIMARY);
 
 	igt_create_fb(data->drm_fd, mode->hdisplay, mode->vdisplay,
-		      DRM_FORMAT_XRGB8888, I915_FORMAT_MOD_X_TILED, &data->fb);
+		      DRM_FORMAT_XRGB8888, I915_FORMAT_MOD_X_TILED, &data->fb[0]);
+	igt_create_fb(data->drm_fd, mode->hdisplay, mode->vdisplay,
+		      DRM_FORMAT_XRGB8888, I915_FORMAT_MOD_X_TILED, &data->fb[1]);
 
-	igt_plane_set_fb(data->plane, &data->fb);
+	igt_plane_set_fb(data->plane, &data->fb[1]);
 	igt_display_commit(&data->display);
 }
 
 static void test(data_t *data)
 {
-	uint32_t handle = data->fb.gem_handle;
-
 	for (int i = 0; i < 100000; i++) {
-		for (int j = 0; j < 5; j++) {
-			usleep(2000);
+		struct igt_fb *fb = &data->fb[i & 1];
+		uint32_t handle = fb->gem_handle;
+
+		igt_plane_set_fb(data->plane, fb);
+		igt_display_commit(&data->display);
+
+		for (int j = 0; j < 1; j++) {
+			usleep(500);
 			gem_set_domain(data->drm_fd, handle, I915_GEM_DOMAIN_CPU, I915_GEM_DOMAIN_CPU);
 			gem_sw_finish(data->drm_fd, handle);
 			gem_set_domain(data->drm_fd, handle, I915_GEM_DOMAIN_GTT, 0);
 		}
-		igt_wait_for_vblank(data->drm_fd, data->pipe);
+		for (int j = 0; j < 30; j++) {
+			usleep(500);
+			drmModeDirtyFB(data->drm_fd, fb->fb_id, NULL, 0);
+		}
 	}
 }
 
@@ -73,7 +82,8 @@ static void cleanup_crtc(data_t *data)
 	igt_output_set_pipe(data->output, PIPE_NONE);
 	igt_plane_set_fb(data->plane, NULL);
 	igt_display_commit(&data->display);
-	igt_remove_fb(data->drm_fd, &data->fb);
+	igt_remove_fb(data->drm_fd, &data->fb[1]);
+	igt_remove_fb(data->drm_fd, &data->fb[0]);
 }
 
 static void run_test(data_t *data)
