@@ -26,6 +26,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
 
 typedef struct {
 	int drm_fd;
@@ -55,8 +56,31 @@ static void prepare_crtc(data_t *data)
 	igt_display_commit(&data->display);
 }
 
+static void *gtt_thread(void *arg)
+{
+	data_t *data = arg;
+	uint32_t handle = data->fb[0].gem_handle;
+	void *ptr;
+
+	ptr = gem_mmap__gtt(data->drm_fd, handle, 4096, PROT_WRITE);
+
+	for (;;) {
+		pthread_testcancel();
+		memset(ptr, 0xff, 4);
+		usleep(500);
+	}
+
+	munmap(ptr, 4096);
+
+	return NULL;
+}
+
 static void test(data_t *data)
 {
+	pthread_t th;
+
+	pthread_create(&th, NULL, gtt_thread, data);
+
 	for (int i = 0; i < 100000; i++) {
 		struct igt_fb *fb = &data->fb[i & 1];
 		uint32_t handle = fb->gem_handle;
@@ -75,6 +99,9 @@ static void test(data_t *data)
 			drmModeDirtyFB(data->drm_fd, fb->fb_id, NULL, 0);
 		}
 	}
+
+	pthread_cancel(th);
+	pthread_join(th, NULL);
 }
 
 static void cleanup_crtc(data_t *data)
