@@ -1023,7 +1023,7 @@ int main(int argc, char *argv[])
 				pipe -= '0';
 			else
 				usage(argv[0]);
-			if (pipe < 0 || pipe > 2)
+			if (pipe < 0 || pipe > 3)
 				usage(argv[0]);
 			break;
 		case 'b':
@@ -1104,6 +1104,8 @@ int main(int argc, char *argv[])
 
 		if (pipe > 1 && !IS_CHERRYVIEW(devid))
 			usage(argv[0]);
+		if (pipe > 2)
+			usage(argv[0]);
 
 		if (test_pixelcount)
 			usage(argv[0]);
@@ -1128,6 +1130,10 @@ int main(int argc, char *argv[])
 		}
 	} else {
 		if (pipe > 1 && intel_gen(devid) < 7)
+			usage(argv[0]);
+		if (pipe > 2 && intel_gen(devid) < 12)
+			usage(argv[0]);
+		if (pipe > 3)
 			usage(argv[0]);
 
 		if (test_pixelcount)
