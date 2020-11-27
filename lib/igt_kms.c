@@ -404,6 +404,8 @@ const char * const igt_crtc_prop_names[IGT_NUM_CRTC_PROPS] = {
 	[IGT_CRTC_GAMMA_LUT_SIZE] = "GAMMA_LUT_SIZE",
 	[IGT_CRTC_DEGAMMA_LUT] = "DEGAMMA_LUT",
 	[IGT_CRTC_DEGAMMA_LUT_SIZE] = "DEGAMMA_LUT_SIZE",
+	[IGT_CRTC_GAMMA_LUT_3D] = "GAMMA_LUT_3D",
+	[IGT_CRTC_GAMMA_LUT_3D_SIZE] = "GAMMA_LUT_3D_SIZE",
 	[IGT_CRTC_MODE_ID] = "MODE_ID",
 	[IGT_CRTC_ACTIVE] = "ACTIVE",
 	[IGT_CRTC_OUT_FENCE_PTR] = "OUT_FENCE_PTR",
@@ -1795,6 +1797,9 @@ static void igt_pipe_reset(igt_pipe_t *pipe)
 
 	if (igt_pipe_obj_has_prop(pipe, IGT_CRTC_DEGAMMA_LUT))
 		igt_pipe_obj_set_prop_value(pipe, IGT_CRTC_DEGAMMA_LUT, 0);
+
+	if (igt_pipe_obj_has_prop(pipe, IGT_CRTC_GAMMA_LUT_3D))
+		igt_pipe_obj_set_prop_value(pipe, IGT_CRTC_GAMMA_LUT_3D, 0);
 
 	pipe->out_fence_fd = -1;
 }

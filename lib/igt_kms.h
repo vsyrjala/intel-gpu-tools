@@ -102,6 +102,8 @@ enum igt_atomic_crtc_properties {
        IGT_CRTC_GAMMA_LUT_SIZE,
        IGT_CRTC_DEGAMMA_LUT,
        IGT_CRTC_DEGAMMA_LUT_SIZE,
+       IGT_CRTC_GAMMA_LUT_3D,
+       IGT_CRTC_GAMMA_LUT_3D_SIZE,
        IGT_CRTC_MODE_ID,
        IGT_CRTC_ACTIVE,
        IGT_CRTC_OUT_FENCE_PTR,
