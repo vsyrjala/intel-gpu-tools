@@ -194,6 +194,89 @@ static void test_pipe_gamma(data_t *data,
 	free_lut(gamma_full);
 }
 
+static void test_pipe_gamma_lut_3d(data_t *data,
+				   igt_plane_t *primary)
+{
+	igt_output_t *output;
+	igt_display_t *display = &data->display;
+	gamma_lut_t *gamma_lut_3d_linear, *gamma_lut_3d_full;
+	color_t red_green_blue[] = {
+		{ 1.0, 0.0, 0.0 },
+		{ 0.0, 1.0, 0.0 },
+		{ 0.0, 0.0, 1.0 }
+	};
+
+	igt_require(igt_pipe_obj_has_prop(primary->pipe, IGT_CRTC_GAMMA_LUT_3D));
+
+	gamma_lut_3d_linear = generate_lut_3d(data->gamma_lut_3d_size, 1.0);
+	gamma_lut_3d_full = generate_table_max(lut_3d_size(data->gamma_lut_3d_size));
+
+	for_each_valid_output_on_pipe(&data->display, primary->pipe->pipe, output) {
+		drmModeModeInfo *mode;
+		struct igt_fb fb_modeset, fb;
+		igt_crc_t crc_fulllut3d, crc_fullcolors;
+		int fb_id, fb_modeset_id;
+
+		igt_output_set_pipe(output, primary->pipe->pipe);
+		mode = igt_output_get_mode(output);
+
+		/* Create a framebuffer at the size of the output. */
+		fb_id = igt_create_fb(data->drm_fd,
+				      mode->hdisplay,
+				      mode->vdisplay,
+				      DRM_FORMAT_XRGB8888,
+				      LOCAL_DRM_FORMAT_MOD_NONE,
+				      &fb);
+		igt_assert(fb_id);
+
+		fb_modeset_id = igt_create_fb(data->drm_fd,
+					      mode->hdisplay,
+					      mode->vdisplay,
+					      DRM_FORMAT_XRGB8888,
+					      LOCAL_DRM_FORMAT_MOD_NONE,
+					      &fb_modeset);
+		igt_assert(fb_modeset_id);
+
+		igt_plane_set_fb(primary, &fb_modeset);
+		disable_ctm(primary->pipe);
+		disable_degamma(primary->pipe);
+		disable_gamma(primary->pipe);
+		set_gamma_lut_3d(data, primary->pipe, gamma_lut_3d_linear);
+		igt_display_commit(&data->display);
+
+		/* Draw solid colors with no degamma transformation. */
+		paint_rectangles(data, mode, red_green_blue, &fb);
+		igt_plane_set_fb(primary, &fb);
+		igt_display_commit(&data->display);
+		igt_wait_for_vblank(data->drm_fd,
+				    display->pipes[primary->pipe->pipe].crtc_offset);
+		igt_pipe_crc_collect_crc(data->pipe_crc, &crc_fullcolors);
+
+		/* Draw a gradient with 3D LUT to remap all
+		 * values to max red/green/blue.
+		 */
+		paint_gradient_rectangles(data, mode, red_green_blue, &fb);
+		igt_plane_set_fb(primary, &fb);
+		set_gamma_lut_3d(data, primary->pipe, gamma_lut_3d_full);
+		igt_display_commit(&data->display);
+		igt_wait_for_vblank(data->drm_fd,
+				    display->pipes[primary->pipe->pipe].crtc_offset);
+		igt_pipe_crc_collect_crc(data->pipe_crc, &crc_fulllut3d);
+
+		/* Verify that the CRC of the software computed output is
+		 * equal to the CRC of the degamma LUT transformation output.
+		 */
+		igt_assert_crc_equal(&crc_fulllut3d, &crc_fullcolors);
+
+		igt_plane_set_fb(primary, NULL);
+		igt_output_set_pipe(output, PIPE_NONE);
+	}
+
+	free_lut(gamma_lut_3d_linear);
+	free_lut(gamma_lut_3d_full);
+}
+
+
 /*
  * Draw 3 gradient rectangles in red, green and blue, with a maxed out legacy
  * gamma LUT and verify we have the same CRC as drawing solid color rectangles
@@ -668,6 +751,13 @@ run_tests_for_pipe(data_t *data, enum pipe p)
 			igt_assert_lt(0, data->gamma_lut_size);
 		}
 
+		if (igt_pipe_obj_has_prop(&data->display.pipes[p], IGT_CRTC_GAMMA_LUT_3D_SIZE)) {
+			data->gamma_lut_3d_size =
+				igt_pipe_obj_get_prop(&data->display.pipes[p],
+						      IGT_CRTC_GAMMA_LUT_3D_SIZE);
+			igt_assert_lt(0, data->gamma_lut_3d_size);
+		}
+
 		igt_display_require_output_on_pipe(&data->display, p);
 	}
 
@@ -830,6 +920,9 @@ run_tests_for_pipe(data_t *data, enum pipe p)
 	igt_subtest_f("pipe-%s-legacy-gamma-reset", kmstest_pipe_name(p))
 		test_pipe_legacy_gamma_reset(data, primary);
 
+	igt_subtest_f("pipe-%s-gamma-lut-3d", kmstest_pipe_name(p))
+		test_pipe_gamma_lut_3d(data, primary);
+
 	igt_fixture {
 		disable_degamma(primary->pipe);
 		disable_gamma(primary->pipe);
@@ -867,6 +960,9 @@ igt_main
 
 	igt_subtest_f("pipe-invalid-ctm-matrix-sizes")
 		invalid_ctm_matrix_sizes(&data);
+
+	igt_subtest_f("pipe-invalid-gamma-lut-3d-sizes")
+		invalid_gamma_lut_3d_sizes(&data);
 
 	igt_fixture {
 		igt_display_fini(&data.display);

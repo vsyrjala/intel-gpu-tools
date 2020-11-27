@@ -52,6 +52,7 @@ typedef struct {
 	uint32_t color_depth;
 	uint64_t degamma_lut_size;
 	uint64_t gamma_lut_size;
+	uint64_t gamma_lut_3d_size;
 	#ifdef HAVE_CHAMELIUM
 	struct chamelium *chamelium;
 	struct chamelium_port **ports;
@@ -77,6 +78,7 @@ void free_lut(gamma_lut_t *gamma);
 gamma_lut_t *generate_table(int lut_size, double exp);
 gamma_lut_t *generate_table_max(int lut_size);
 gamma_lut_t *generate_table_zero(int lut_size);
+gamma_lut_t *generate_lut_3d(int lut_size, double exp);
 struct drm_color_lut *coeffs_to_lut(data_t *data,
 				    const gamma_lut_t *gamma,
 				    uint32_t color_depth,
@@ -87,12 +89,26 @@ void set_degamma(data_t *data,
 void set_gamma(data_t *data,
 	       igt_pipe_t *pipe,
 	       const gamma_lut_t *gamma);
+void set_gamma_lut_3d(data_t *data,
+		      igt_pipe_t *pipe,
+		      const gamma_lut_t *gamma);
 void set_ctm(igt_pipe_t *pipe, const double *coefficients);
 void disable_prop(igt_pipe_t *pipe, enum igt_atomic_crtc_properties prop);
 
 #define disable_degamma(pipe) disable_prop(pipe, IGT_CRTC_DEGAMMA_LUT)
 #define disable_gamma(pipe) disable_prop(pipe, IGT_CRTC_GAMMA_LUT)
+#define disable_lut_3d(pipe) disable_prop(pipe, IGT_CRTC_LUT_3D)
 #define disable_ctm(pipe) disable_prop(pipe, IGT_CRTC_CTM)
+
+static inline int lut_3d_size(int lut_size)
+{
+	return lut_size * lut_size * lut_size;
+}
+
+static inline int lut_3d_index(int r, int g, int b, int lut_size)
+{
+	return r * lut_size * lut_size + g * lut_size + b;
+}
 
 drmModePropertyBlobPtr get_blob(data_t *data, igt_pipe_t *pipe,
 				enum igt_atomic_crtc_properties prop);
@@ -105,6 +121,7 @@ int pipe_set_property_blob(igt_pipe_t *pipe,
 			   void *ptr, size_t length);
 void invalid_gamma_lut_sizes(data_t *data);
 void invalid_degamma_lut_sizes(data_t *data);
+void invalid_gamma_lut_3d_sizes(data_t *data);
 void invalid_ctm_matrix_sizes(data_t *data);
 #endif
 

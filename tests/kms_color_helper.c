@@ -143,6 +143,25 @@ gamma_lut_t *generate_table_zero(int lut_size)
 	return gamma;
 }
 
+gamma_lut_t *generate_lut_3d(int lut_size, double exp)
+{
+	gamma_lut_t *gamma = alloc_lut(lut_3d_size(lut_size));
+
+	for (int r = 0; r < lut_size; r++) {
+		for (int g = 0; g < lut_size; g++) {
+			for (int b = 0; b < lut_size; b++) {
+				int i = lut_3d_index(r, g, b, lut_size);
+
+				gamma->coeffs[i].r = pow(r * 1.0 / (lut_size - 1), exp);
+				gamma->coeffs[i].g = pow(g * 1.0 / (lut_size - 1), exp);
+				gamma->coeffs[i].b = pow(b * 1.0 / (lut_size - 1), exp);
+			}
+		}
+	}
+
+	return gamma;
+}
+
 struct drm_color_lut *coeffs_to_lut(data_t *data,
 				    const gamma_lut_t *gamma,
 				    uint32_t color_depth,
@@ -211,6 +230,19 @@ void set_gamma(data_t *data,
 						  data->color_depth, 0);
 
 	igt_pipe_obj_replace_prop_blob(pipe, IGT_CRTC_GAMMA_LUT, lut, size);
+
+	free(lut);
+}
+
+void set_gamma_lut_3d(data_t *data,
+		      igt_pipe_t *pipe,
+		      const gamma_lut_t *gamma_lut_3d)
+{
+	size_t size = sizeof(struct drm_color_lut) * gamma_lut_3d->size;
+	struct drm_color_lut *lut = coeffs_to_lut(data, gamma_lut_3d,
+						  data->color_depth, 0);
+
+	igt_pipe_obj_replace_prop_blob(pipe, IGT_CRTC_GAMMA_LUT_3D, lut, size);
 
 	free(lut);
 }
@@ -336,6 +368,12 @@ invalid_degamma_lut_sizes(data_t *data)
 	return invalid_lut_sizes(data, IGT_CRTC_DEGAMMA_LUT, data->degamma_lut_size);
 }
 
+void
+invalid_gamma_lut_3d_sizes(data_t *data)
+{
+	invalid_lut_sizes(data, IGT_CRTC_GAMMA_LUT_3D, lut_3d_size(data->gamma_lut_3d_size));
+}
+
 void invalid_ctm_matrix_sizes(data_t *data)
 {
 	igt_display_t *display = &data->display;
@@ -364,4 +402,3 @@ void invalid_ctm_matrix_sizes(data_t *data)
 
 	free(ptr);
 }
-
