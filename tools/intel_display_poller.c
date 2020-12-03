@@ -173,6 +173,11 @@ static void enable_async_flip(uint32_t devid, int pipe, bool enable)
 	write_reg(PIPE_REG(plane, DSPACNTR), tmp);
 }
 
+static void kick_vrr(void)
+{
+	/* FIXME implement */
+}
+
 static void poll_pixel_pipestat(int pipe, int bit, uint32_t *min, uint32_t *max, const int count)
 {
 	uint32_t pix, pix1, pix2, iir, iir1, iir2, iir_bit, iir_mask;
@@ -624,7 +629,8 @@ static void poll_dsl_framecount_g4x(int pipe, uint32_t *min, uint32_t *max, cons
 }
 
 static void poll_dsl_flipcount_g4x(uint32_t devid, int pipe,
-				   uint32_t *min, uint32_t *max, const int count)
+				   uint32_t *min, uint32_t *max, const int count,
+				   bool vrr_kick)
 {
 	uint32_t dsl, dsl1, dsl2, flp, flp1, flp2, surf;
 	bool field1, field2;
@@ -655,6 +661,8 @@ static void poll_dsl_flipcount_g4x(uint32_t devid, int pipe,
 			return;
 
 		write_reg(surf, read_reg(surf));
+		if (vrr_kick)
+			kick_vrr();
 
 		while (!quit) {
 			dsl1 = read_reg(dsl);
@@ -718,7 +726,8 @@ static void poll_dsl_framecount_gen3(int pipe, uint32_t *min, uint32_t *max, con
 }
 
 static void poll_dsl_pan(uint32_t devid, int pipe, int target_scanline, int target_fuzz,
-			 uint32_t *min, uint32_t *max, const int count)
+			 uint32_t *min, uint32_t *max, const int count,
+			 bool vrr_kick)
 {
 	uint32_t dsl, dsl1 = 0, dsl2 = 0;
 	bool field1 = false, field2 = false;
@@ -740,6 +749,8 @@ static void poll_dsl_pan(uint32_t devid, int pipe, int target_scanline, int targ
 		}
 
 		write_reg(surf, saved+256);
+		if (vrr_kick)
+			kick_vrr();
 
 		while (!quit) {
 			dsl2 = read_reg(dsl);
@@ -765,7 +776,8 @@ static void poll_dsl_pan(uint32_t devid, int pipe, int target_scanline, int targ
 }
 
 static void poll_dsl_flip(uint32_t devid, int pipe, int target_scanline, int target_fuzz,
-			  uint32_t *min, uint32_t *max, const int count, bool async)
+			  uint32_t *min, uint32_t *max, const int count, bool async,
+			  bool vrr_kick)
 {
 	uint32_t dsl, dsl1 = 0, dsl2 = 0;
 	bool field1 = false, field2 = false;
@@ -789,6 +801,8 @@ static void poll_dsl_flip(uint32_t devid, int pipe, int target_scanline, int tar
 		}
 
 		write_reg(surf, saved+256*1024);
+		if (vrr_kick)
+			kick_vrr();
 
 		while (!quit) {
 			dsl2 = read_reg(dsl);
@@ -884,7 +898,8 @@ static void poll_dsl_flipdone_pipestat(uint32_t devid, int pipe, int target_scan
 }
 
 static void poll_dsl_flipdone_deiir(uint32_t devid, int pipe, int target_scanline, int target_fuzz,
-				    uint32_t *min, uint32_t *max, const int count, bool async)
+				    uint32_t *min, uint32_t *max, const int count, bool async,
+				    bool vrr_kick)
 {
 	uint32_t dsl, dsl1 = 0, dsl2 = 0;
 	uint32_t iir, iir2, ier, imr;
@@ -943,6 +958,8 @@ static void poll_dsl_flipdone_deiir(uint32_t devid, int pipe, int target_scanlin
 		else
 			next = saved;
 		write_reg(surf, next);
+		if (vrr_kick)
+			kick_vrr();
 
 		while (!quit) {
 			iir2 = read_reg(iir);
@@ -976,7 +993,8 @@ static void poll_dsl_flipdone_deiir(uint32_t devid, int pipe, int target_scanlin
 }
 
 static void poll_dsl_surflive(uint32_t devid, int pipe,
-			      uint32_t *min, uint32_t *max, const int count, bool async)
+			      uint32_t *min, uint32_t *max, const int count, bool async,
+			      bool vrr_kick)
 {
 	uint32_t dsl, dsl1 = 0, dsl2 = 0, surf, surf1, surf2, surflive, surfl1 = 0, surfl2, saved, tmp;
 	bool field1 = false, field2 = false;
@@ -995,6 +1013,8 @@ static void poll_dsl_surflive(uint32_t devid, int pipe,
 
 	while (!quit) {
 		write_reg(surf, surf2);
+		if (vrr_kick)
+			kick_vrr();
 
 		while (!quit) {
 			dsl1 = read_reg(dsl);
@@ -1151,7 +1171,8 @@ static void __attribute__((noreturn)) usage(const char *name)
 		" -l,--line <target scanline/pixel>\n"
 		" -f,--fuzz <target fuzz>\n"
 		" -x,--pixel\n"
-		" -a,--async\n",
+		" -a,--async\n"
+		" -v,--vrr-kick\n",
 		name);
 	exit(1);
 }
@@ -1163,6 +1184,7 @@ int main(int argc, char *argv[])
 	int pipe = 0, bit = 0, target_scanline = 0, target_fuzz = 1;
 	bool test_pixelcount = false;
 	bool test_async_flip = false;
+	bool test_vrr_kick = false;
 	uint32_t devid;
 	uint32_t min[2*128] = {};
 	uint32_t max[2*128] = {};
@@ -1179,10 +1201,11 @@ int main(int argc, char *argv[])
 			{ .name = "fuzz", .has_arg = required_argument, },
 			{ .name = "pixel", .has_arg = no_argument, },
 			{ .name = "async", .has_arg = no_argument, },
+			{ .name = "vrr-kick", .has_arg = no_argument, },
 			{ },
 		};
 
-		int opt = getopt_long(argc, argv, "t:p:b:l:f:xa", long_options, NULL);
+		int opt = getopt_long(argc, argv, "t:p:b:l:f:xav", long_options, NULL);
 		if (opt == -1)
 			break;
 
@@ -1247,6 +1270,9 @@ int main(int argc, char *argv[])
 		case 'a':
 			test_async_flip = true;
 			break;
+		case 'v':
+			test_vrr_kick = true;
+			break;
 		}
 	}
 
@@ -1264,6 +1290,9 @@ int main(int argc, char *argv[])
 			usage(argv[0]);
 
 		if (test_async_flip)
+			usage(argv[0]);
+
+		if (test_vrr_kick)
 			usage(argv[0]);
 
 		switch (test) {
@@ -1284,6 +1313,9 @@ int main(int argc, char *argv[])
 			usage(argv[0]);
 
 		if (test_async_flip)
+			usage(argv[0]);
+
+		if (test_vrr_kick)
 			usage(argv[0]);
 
 		switch (test) {
@@ -1317,6 +1349,9 @@ int main(int argc, char *argv[])
 			usage(argv[0]);
 
 		if (test_pixelcount)
+			usage(argv[0]);
+
+		if (test_vrr_kick)
 			usage(argv[0]);
 
 		switch (test) {
@@ -1356,6 +1391,9 @@ int main(int argc, char *argv[])
 			usage(argv[0]);
 
 		if (test_pixelcount)
+			usage(argv[0]);
+
+		if (test_vrr_kick && intel_gen(devid) < 11)
 			usage(argv[0]);
 
 		switch (test) {
@@ -1431,7 +1469,7 @@ int main(int argc, char *argv[])
 		break;
 	case TEST_FLIPCOUNT:
 		assert(!test_pixelcount);
-		poll_dsl_flipcount_g4x(devid, pipe, min, max, count);
+		poll_dsl_flipcount_g4x(devid, pipe, min, max, count, test_vrr_kick);
 		break;
 	case TEST_PAN:
 		if (test_pixelcount)
@@ -1439,7 +1477,7 @@ int main(int argc, char *argv[])
 				       min, max, count);
 		else
 			poll_dsl_pan(devid, pipe, target_scanline, target_fuzz,
-				     min, max, count);
+				     min, max, count, test_vrr_kick);
 		break;
 	case TEST_FLIP:
 		if (test_pixelcount)
@@ -1447,7 +1485,7 @@ int main(int argc, char *argv[])
 					min, max, count);
 		else
 			poll_dsl_flip(devid, pipe, target_scanline, target_fuzz,
-				      min, max, count, test_async_flip);
+				      min, max, count, test_async_flip, test_vrr_kick);
 		break;
 	case TEST_FLIPDONE_PIPESTAT:
 		poll_dsl_flipdone_pipestat(devid, pipe, target_scanline, target_fuzz,
@@ -1455,10 +1493,10 @@ int main(int argc, char *argv[])
 		break;
 	case TEST_FLIPDONE_DEIIR:
 		poll_dsl_flipdone_deiir(devid, pipe, target_scanline, target_fuzz,
-					min, max, count, test_async_flip);
+					min, max, count, test_async_flip, test_vrr_kick);
 		break;
 	case TEST_SURFLIVE:
-		poll_dsl_surflive(devid, pipe, min, max, count, test_async_flip);
+		poll_dsl_surflive(devid, pipe, min, max, count, test_async_flip, test_vrr_kick);
 		break;
 	case TEST_WRAP:
 		if (test_pixelcount)
