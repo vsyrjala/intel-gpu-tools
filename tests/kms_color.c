@@ -209,7 +209,7 @@ static void test_pipe_gamma_lut_3d(data_t *data,
 	igt_require(igt_pipe_obj_has_prop(primary->pipe, IGT_CRTC_GAMMA_LUT_3D));
 
 	gamma_lut_3d_linear = generate_lut_3d(data->gamma_lut_3d_size, 1.0);
-	gamma_lut_3d_full = generate_table_max(lut_3d_size(data->gamma_lut_3d_size));
+	gamma_lut_3d_full = generate_lut_3d_max(data->gamma_lut_3d_size);
 
 	for_each_valid_output_on_pipe(&data->display, primary->pipe->pipe, output) {
 		drmModeModeInfo *mode;

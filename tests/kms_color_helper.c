@@ -162,6 +162,25 @@ gamma_lut_t *generate_lut_3d(int lut_size, double exp)
 	return gamma;
 }
 
+gamma_lut_t *generate_lut_3d_max(int lut_size)
+{
+	gamma_lut_t *gamma = alloc_lut(lut_3d_size(lut_size));
+
+	for (int r = 0; r < lut_size; r++) {
+		for (int g = 0; g < lut_size; g++) {
+			for (int b = 0; b < lut_size; b++) {
+				int i = lut_3d_index(r, g, b, lut_size);
+
+				gamma->coeffs[i].r = r == 0 ? 0.0 : 1.0;
+				gamma->coeffs[i].g = g == 0 ? 0.0 : 1.0;
+				gamma->coeffs[i].b = b == 0 ? 0.0 : 1.0;
+			}
+		}
+	}
+
+	return gamma;
+}
+
 struct drm_color_lut *coeffs_to_lut(data_t *data,
 				    const gamma_lut_t *gamma,
 				    uint32_t color_depth,

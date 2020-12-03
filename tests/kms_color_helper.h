@@ -79,6 +79,7 @@ gamma_lut_t *generate_table(int lut_size, double exp);
 gamma_lut_t *generate_table_max(int lut_size);
 gamma_lut_t *generate_table_zero(int lut_size);
 gamma_lut_t *generate_lut_3d(int lut_size, double exp);
+gamma_lut_t *generate_lut_3d_max(int lut_size);
 struct drm_color_lut *coeffs_to_lut(data_t *data,
 				    const gamma_lut_t *gamma,
 				    uint32_t color_depth,
