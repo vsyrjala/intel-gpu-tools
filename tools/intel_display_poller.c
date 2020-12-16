@@ -59,6 +59,7 @@ enum test {
 	TEST_FLIPDONE_DEIIR,
 	TEST_SURFLIVE,
 	TEST_WRAP,
+	TEST_VRR_WRAP,
 	TEST_FIELD,
 };
 
@@ -1149,15 +1150,13 @@ static void poll_dsl_surflive(uint32_t devid, int pipe,
 	write_reg(surf, saved);
 }
 
-static void poll_dsl_wrap(uint32_t devid, int pipe,
-			  uint32_t *min, uint32_t *max, const int count,
-			  int vrr_push_scanline)
+static void _poll_dsl_wrap(uint32_t devid, int pipe,
+			   uint32_t *min, uint32_t *max, const int count,
+			   int vrr_push_scanline, uint32_t dsl)
 {
-	uint32_t dsl, dsl1, dsl2;
+	uint32_t dsl1, dsl2;
 	bool field1, field2;
 	int i[2] = {};
-
-	dsl = PIPE_REG(pipe, PIPEA_DSL);
 
 	while (!quit) {
 		push_vrr(devid, pipe, vrr_push_scanline);
@@ -1184,6 +1183,24 @@ static void poll_dsl_wrap(uint32_t devid, int pipe,
 		if (++i[field1] >= count)
 			break;
 	}
+}
+
+static void poll_dsl_wrap(uint32_t devid,
+			  int pipe, uint32_t *min, uint32_t *max, const int count,
+			  int vrr_push_scanline)
+{
+	return _poll_dsl_wrap(devid, pipe, min, max, count,
+			      vrr_push_scanline,
+			      PIPE_REG(pipe, PIPEA_DSL));
+}
+
+static void poll_vrr_wrap(uint32_t devid,
+			  int pipe, uint32_t *min, uint32_t *max, const int count,
+			  int vrr_push_scanline)
+{
+	return _poll_dsl_wrap(devid, pipe, min, max, count,
+			      vrr_push_scanline,
+			      trans_reg(devid, pipe, TRANS_VRR_STATUS2_A));
 }
 
 static void poll_dsl_field(int pipe, uint32_t *min, uint32_t *max, const int count)
@@ -1267,6 +1284,9 @@ static const char *test_name(enum test test, int pipe, int bit, bool test_pixel_
 	case TEST_FIELD:
 		snprintf(str, sizeof str, "%s / pipe %c / Field", type, pipe_name(pipe));
 		return str;
+	case TEST_VRR_WRAP:
+		snprintf(str, sizeof str, "%s / pipe %c / VRR wrap", type, pipe_name(pipe));
+		return str;
 	default:
 		return "";
 	}
@@ -1275,7 +1295,7 @@ static const char *test_name(enum test test, int pipe, int bit, bool test_pixel_
 static void __attribute__((noreturn)) usage(const char *name)
 {
 	fprintf(stderr, "Usage: %s [options]\n"
-		" -t,--test <pipestat|iir|framecount|flipcount|frametimestamp|timestamp|pan|flip|flipdone|surflive|wrap|field>\n"
+		" -t,--test <pipestat|iir|framecount|flipcount|frametimestamp|timestamp|pan|flip|flipdone|surflive|wrap|field|vrr-wrap>\n"
 		" -p,--pipe <pipe>\n"
 		" -b,--bit <bit>\n"
 		" -l,--line <target scanline/pixel>\n"
@@ -1345,6 +1365,8 @@ int main(int argc, char *argv[])
 				test = TEST_WRAP;
 			else if (!strcmp(optarg, "field"))
 				test = TEST_FIELD;
+			else if (!strcmp(optarg, "vrr-wrap"))
+				test = TEST_VRR_WRAP;
 			else
 				usage(argv[0]);
 			break;
@@ -1527,6 +1549,10 @@ int main(int argc, char *argv[])
 		case TEST_FLIPDONE:
 			test = TEST_FLIPDONE_DEIIR;
 			break;
+		case TEST_VRR_WRAP:
+			if (intel_gen(devid) < 11)
+				usage(argv[0]);
+			break;
 		case TEST_FLIPCOUNT:
 		case TEST_PAN:
 		case TEST_FLIP:
@@ -1637,6 +1663,9 @@ int main(int argc, char *argv[])
 		break;
 	case TEST_FIELD:
 		poll_dsl_field(pipe, min, max, count);
+		break;
+	case TEST_VRR_WRAP:
+		poll_vrr_wrap(devid, pipe, min, max, count, vrr_push_scanline);
 		break;
 	default:
 		assert(0);
