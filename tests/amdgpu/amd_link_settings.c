@@ -116,7 +116,8 @@ static void test_init(data_t *data, igt_output_t *output)
 	igt_require(data->pipe_id != PIPE_NONE);
 
 	data->pipe = &data->display.pipes[data->pipe_id];
-	data->pipe_crc = igt_pipe_crc_new(data->drm_fd, data->pipe_id, "auto");
+	data->pipe_crc = igt_pipe_crc_new(data->drm_fd, data->pipe_id,
+					  IGT_PIPE_CRC_SOURCE_AUTO);
 
 	igt_output_set_pipe(output, data->pipe_id);
 
