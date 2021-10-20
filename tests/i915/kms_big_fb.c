@@ -453,7 +453,7 @@ static bool test_pipe(data_t *data)
 			    COMMIT_ATOMIC : COMMIT_UNIVERSAL);
 
 	data->pipe_crc = igt_pipe_crc_new(data->drm_fd, data->pipe,
-					  INTEL_PIPE_CRC_SOURCE_AUTO);
+					  IGT_PIPE_CRC_SOURCE_AUTO);
 
 	for_each_plane_on_pipe(&data->display, data->pipe, data->plane) {
 		ret = test_plane(data);
@@ -510,7 +510,7 @@ max_hw_stride_async_flip_test(data_t *data)
 	generate_pattern(data, &data->big_fb_flip[1], 640, 480);
 
 	data->pipe_crc = igt_pipe_crc_new(data->drm_fd, data->pipe,
-					  INTEL_PIPE_CRC_SOURCE_AUTO);
+					  IGT_PIPE_CRC_SOURCE_AUTO);
 	igt_pipe_crc_start(data->pipe_crc);
 
 	igt_set_timeout(5, "Async pageflipping loop got stuck!\n");

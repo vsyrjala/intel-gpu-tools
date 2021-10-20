@@ -215,7 +215,7 @@ static enum subrval test_flip_to_scaled(data_t *data, uint32_t index,
 		igt_pipe_crc_free(data->pipe_crc);
 	}
 	data->pipe_crc = igt_pipe_crc_new(data->drm_fd, pipe,
-					  INTEL_PIPE_CRC_SOURCE_AUTO);
+					  IGT_PIPE_CRC_SOURCE_AUTO);
 
 	for (int i = 0; i < output->config.connector->count_modes; i++) {
 		if (output->config.connector->modes[i].hdisplay == data->attemptmodewidth &&

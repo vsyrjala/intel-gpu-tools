@@ -192,7 +192,7 @@ test_planes_on_pipe_with_output(data_t *data, igt_plane_t *plane, uint64_t modif
 	create_ref_fb(data, modifier, &mode_lowres, &data->ref_lowres.fb);
 
 	pipe_crc = igt_pipe_crc_new(data->drm_fd, data->pipe,
-				    INTEL_PIPE_CRC_SOURCE_AUTO);
+				    IGT_PIPE_CRC_SOURCE_AUTO);
 
 	igt_output_override_mode(data->output, &mode_lowres);
 	igt_plane_set_fb(primary, &data->ref_lowres.fb);

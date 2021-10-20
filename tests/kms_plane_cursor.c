@@ -77,7 +77,7 @@ static void test_init(data_t *data, enum pipe pipe_id)
 	data->cursor = igt_pipe_get_plane_type(data->pipe, DRM_PLANE_TYPE_CURSOR);
 
 	data->pipe_crc = igt_pipe_crc_new(data->drm_fd, data->pipe_id,
-					  INTEL_PIPE_CRC_SOURCE_AUTO);
+					  IGT_PIPE_CRC_SOURCE_AUTO);
 
 	igt_output_set_pipe(data->output, data->pipe_id);
 

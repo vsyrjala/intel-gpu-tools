@@ -683,7 +683,7 @@ run_tests_for_pipe(data_t *data, enum pipe p)
 
 		data->pipe_crc = igt_pipe_crc_new(data->drm_fd,
 						  primary->pipe->pipe,
-						  INTEL_PIPE_CRC_SOURCE_AUTO);
+						  IGT_PIPE_CRC_SOURCE_AUTO);
 
 		igt_display_require_output_on_pipe(&data->display, p);
 	}
