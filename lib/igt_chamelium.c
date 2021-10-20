@@ -43,6 +43,7 @@
 #include "igt_frame.h"
 #include "igt_list.h"
 #include "igt_kms.h"
+#include "igt_pipe_crc.h"
 #include "igt_rc.h"
 
 /**

@@ -38,6 +38,7 @@
 #include "igt_gt.h"
 #include "igt_kms.h"
 #include "igt_params.h"
+#include "igt_pipe_crc.h"
 #include "igt_pm.h"
 #include "igt_stats.h"
 #ifdef HAVE_CHAMELIUM
