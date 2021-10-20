@@ -39,6 +39,9 @@
 #include "igt_fb.h"
 #include "ioctl_wrappers.h"
 
+typedef struct _igt_crc igt_crc_t;
+typedef struct _igt_pipe_crc igt_pipe_crc_t;
+
 /* Low-level helpers with kmstest_ prefix */
 
 /**

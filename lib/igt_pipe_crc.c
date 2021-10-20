@@ -600,3 +600,112 @@ void igt_pipe_crc_collect_crc(igt_pipe_crc_t *pipe_crc, igt_crc_t *out_crc)
 	igt_pipe_crc_get_single(pipe_crc, out_crc);
 	igt_pipe_crc_stop(pipe_crc);
 }
+
+static void capture_crc(int drm_fd, igt_pipe_crc_t *pipe_crc,
+			unsigned int vblank, igt_crc_t *crc)
+{
+	igt_pipe_crc_get_for_frame(drm_fd, pipe_crc, vblank, crc);
+
+	igt_fail_on_f(!igt_skip_crc_compare &&
+		      crc->has_valid_frame && crc->frame != vblank,
+		      "Got CRC for the wrong frame (got %u, expected %u). CRC buffer overflow?\n",
+		      crc->frame, vblank);
+}
+
+/*
+ * igt_pipe_crc_pipelined_test:
+ * @display: igt_display_t instance
+ * @pipe_crc: igt_pipe_ctc_t instance
+ * @prepare: Prepare the next frame.
+ * @commit: Commit frame to display
+ * @data: Data to pass to @prepare and @commit
+ * @crcs: Array for returned CRCs (one for each pass)
+ * @num_crcs: number of CRCs
+ *
+ * Execute a @num_crcs tests in a pipelined fashion. If @prepare is
+ * fast enough this will execute one test pass per frame. @prepare
+ * must not be too slow or kerne's CRC ring buffer will overflow
+ * between the passes. The result of the tests is returned as a CRC
+ * for each pass in the @crcs array. It is the responsibility of the
+ * caller to start CRC capture on @pipe_crc before calling this, and
+ * to stop it afterwards.
+ */
+void igt_pipe_crc_pipelined_test(igt_display_t *display, igt_pipe_crc_t *pipe_crc,
+				 void (*prepare)(void *data, int i),
+				 int (*commit)(void *data, int i), void *data,
+				 igt_crc_t crcs[], int num_crcs)
+{
+	unsigned int vblank[num_crcs];
+	struct drm_event_vblank ev;
+	enum pipe pipe = pipe_crc->pipe;
+	int drm_fd = display->drm_fd;
+	int i;
+
+restart_round:
+	for (i = 0; i < num_crcs; i++) {
+		prepare(data, i);
+
+		if (display->is_atomic && i >= 1) {
+			igt_assert(read(drm_fd, &ev, sizeof(ev)) == sizeof(ev));
+			/*
+			 * The last time we saw the crc for
+			 * flip N-2 is when the flip N-1 latched.
+			 */
+			if (i >= 2)
+				vblank[i - 2] = ev.sequence;
+		}
+
+		/*
+		 * The flip issued during frame N will latch
+		 * at the start of frame N+1, and its CRC will
+		 * be ready at the start of frame N+2. So the
+		 * CRC captured here before the flip is issued
+		 * is for frame N-2.
+		 */
+		if (i >= 2)
+			capture_crc(drm_fd, pipe_crc, vblank[i - 2], &crcs[i - 2]);
+
+		if (!display->is_atomic) {
+			/*
+			 * Last moment to grab the previous crc
+			 * is when the next flip latches.
+			 */
+			if (i >= 1)
+				vblank[i - 1] = kmstest_get_vblank(drm_fd, pipe, 0) + 1;
+		}
+
+		if (commit(data, i))
+			goto restart_round;
+	}
+
+	if (display->is_atomic) {
+		igt_assert(read(drm_fd, &ev, sizeof(ev)) == sizeof(ev));
+		/*
+		 * The last time we saw the crc for
+		 * flip N-2 is when the flip N-1 latched.
+		 */
+		if (i >= 2)
+			vblank[i - 2] = ev.sequence;
+		/*
+		 * The last crc is available earliest one
+		 * frame after the last flip latched.
+		 */
+		vblank[i - 1] = ev.sequence + 1;
+	} else {
+		/*
+		 * The last crc is available earliest one
+		 * frame after the last flip latched.
+		 */
+		vblank[i - 1] = kmstest_get_vblank(drm_fd, pipe, 0) + 1;
+	}
+
+	/*
+	 * Get the remaining two crcs
+	 *
+	 * TODO: avoid the extra wait by maintaining the pipeline
+	 * between different pixel formats as well? Could get messy.
+	 */
+	if (i >= 2)
+		capture_crc(drm_fd, pipe_crc, vblank[i - 2], &crcs[i - 2]);
+	capture_crc(drm_fd, pipe_crc, vblank[i - 1], &crcs[i - 1]);
+}

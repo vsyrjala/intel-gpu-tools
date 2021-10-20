@@ -565,16 +565,6 @@ static int num_unique_crcs(const igt_crc_t crc[], int num_crc)
 	return num_unique_crc;
 }
 
-static void capture_crc(data_t *data, unsigned int vblank, igt_crc_t *crc)
-{
-	igt_pipe_crc_get_for_frame(data->drm_fd, data->pipe_crc, vblank, crc);
-
-	igt_fail_on_f(!igt_skip_crc_compare &&
-		      crc->has_valid_frame && crc->frame != vblank,
-		      "Got CRC for the wrong frame (got %u, expected %u). CRC buffer overflow?\n",
-		      crc->frame, vblank);
-}
-
 static void capture_format_crcs_packed(data_t *data, enum pipe pipe,
 				       igt_plane_t *plane,
 				       uint32_t format, uint64_t modifier,
@@ -597,6 +587,80 @@ static void capture_format_crcs_packed(data_t *data, enum pipe pipe,
 	igt_pipe_crc_get_current(data->drm_fd, data->pipe_crc, &crc[0]);
 }
 
+struct test_data {
+	data_t *data;
+	enum pipe pipe;
+	igt_plane_t *plane;
+	uint32_t format;
+	uint64_t modifier;
+	int width, height;
+	enum igt_color_encoding encoding;
+	enum igt_color_range range;
+	struct igt_fb *fb;
+	struct igt_fb old_fb;
+};
+
+static void capture_format_crcs_planar_prepare(void *_data, int i)
+{
+	struct test_data *td = _data;
+	const color_t *c = &td->data->colors[i];
+
+	td->old_fb = *td->fb;
+
+	prepare_format_color(td->data, td->pipe, td->plane,
+			     td->format, td->modifier,
+			     td->width, td->height,
+			     td->encoding, td->range,
+			     c, td->fb, false);
+}
+
+static int capture_format_crcs_planar_commit(void *_data, int i)
+{
+	struct test_data *td = _data;
+
+	if (td->data->display.is_atomic) {
+		int ret;
+
+		/*
+		 * Use non-blocking commits to allow the next fb
+		 * to be prepared in parallel while the current fb
+		 * awaits to be latched.
+		 */
+		ret = igt_display_try_commit_atomic(&td->data->display,
+						    DRM_MODE_ATOMIC_NONBLOCK |
+						    DRM_MODE_PAGE_FLIP_EVENT, NULL);
+		if (ret) {
+			/*
+			 * there was needed modeset for pixel format.
+			 * modeset here happen o	nly on first color of
+			 * given set so restart round as modeset will
+			 * mess up crc frame sequence.
+			 */
+			igt_display_commit_atomic(&td->data->display,
+						  DRM_MODE_ATOMIC_ALLOW_MODESET,
+						  NULL);
+			igt_remove_fb(td->data->drm_fd, &td->old_fb);
+			return ret;
+		}
+	} else {
+		/*
+		 * Can't use drmModePageFlip() since we need to
+		 * change pixel format and potentially update some
+		 * properties as well.
+		 */
+		igt_display_commit2(&td->data->display, COMMIT_UNIVERSAL);
+
+		/* setplane for the cursor does not block */
+		if (td->plane->type == DRM_PLANE_TYPE_CURSOR)
+			igt_wait_for_vblank(td->data->drm_fd,
+					    td->data->display.pipes[td->pipe].crtc_offset);
+	}
+
+	igt_remove_fb(td->data->drm_fd, &td->old_fb);
+
+	return 0;
+}
+
 static void capture_format_crcs_planar(data_t *data, enum pipe pipe,
 				       igt_plane_t *plane,
 				       uint32_t format, uint64_t modifier,
@@ -605,119 +669,22 @@ static void capture_format_crcs_planar(data_t *data, enum pipe pipe,
 				       enum igt_color_range range,
 				       igt_crc_t crc[], struct igt_fb *fb)
 {
-	unsigned int vblank[ARRAY_SIZE(colors_extended)];
-	struct drm_event_vblank ev;
-	int i;
+	struct test_data td = {
+		.data = data,
+		.pipe = pipe,
+		.format = format,
+		.modifier = modifier,
+		.width = width,
+		.height = height,
+		.encoding = encoding,
+		.range = range,
+		.fb = fb,
+	};
 
-restart_round:
-	for (i = 0; i < data->num_colors; i++) {
-		const color_t *c = &data->colors[i];
-		struct igt_fb old_fb = *fb;
-		int ret;
-
-		prepare_format_color(data, pipe, plane, format, modifier,
-				     width, height, encoding, range, c, fb,
-				     false);
-
-		if (data->display.is_atomic && i >= 1) {
-			igt_assert(read(data->drm_fd, &ev, sizeof(ev)) == sizeof(ev));
-			/*
-			 * The last time we saw the crc for
-			 * flip N-2 is when the flip N-1 latched.
-			 */
-			if (i >= 2)
-				vblank[i - 2] = ev.sequence;
-		}
-
-		/*
-		 * The flip issued during frame N will latch
-		 * at the start of frame N+1, and its CRC will
-		 * be ready at the start of frame N+2. So the
-		 * CRC captured here before the flip is issued
-		 * is for frame N-2.
-		 */
-		if (i >= 2)
-			capture_crc(data, vblank[i - 2], &crc[i - 2]);
-
-		if (data->display.is_atomic) {
-			/*
-			 * Use non-blocking commits to allow the next fb
-			 * to be prepared in parallel while the current fb
-			 * awaits to be latched.
-			 */
-			ret = igt_display_try_commit_atomic(&data->display,
-							    DRM_MODE_ATOMIC_NONBLOCK |
-							    DRM_MODE_PAGE_FLIP_EVENT, NULL);
-			if (ret) {
-				/*
-				 * there was needed modeset for pixel format.
-				 * modeset here happen only on first color of
-				 * given set so restart round as modeset will
-				 * mess up crc frame sequence.
-				 */
-				igt_display_commit_atomic(&data->display,
-							  DRM_MODE_ATOMIC_ALLOW_MODESET,
-							  NULL);
-				igt_remove_fb(data->drm_fd, &old_fb);
-				goto restart_round;
-			}
-		} else {
-			/*
-			 * Last moment to grab the previous crc
-			 * is when the next flip latches.
-			 */
-			if (i >= 1)
-				vblank[i - 1] = kmstest_get_vblank(data->drm_fd, pipe, 0) + 1;
-
-			/*
-			 * Can't use drmModePageFlip() since we need to
-			 * change pixel format and potentially update some
-			 * properties as well.
-			 */
-			igt_display_commit2(&data->display, COMMIT_UNIVERSAL);
-
-			/* setplane for the cursor does not block */
-			if (plane->type == DRM_PLANE_TYPE_CURSOR) {
-				igt_display_t *display = &data->display;
-
-				igt_wait_for_vblank(data->drm_fd,
-						display->pipes[pipe].crtc_offset);
-			}
-		}
-
-		igt_remove_fb(data->drm_fd, &old_fb);
-	}
-
-	if (data->display.is_atomic) {
-		igt_assert(read(data->drm_fd, &ev, sizeof(ev)) == sizeof(ev));
-		/*
-		 * The last time we saw the crc for
-		 * flip N-2 is when the flip N-1 latched.
-		 */
-		if (i >= 2)
-			vblank[i - 2] = ev.sequence;
-		/*
-		 * The last crc is available earliest one
-		 * frame after the last flip latched.
-		 */
-		vblank[i - 1] = ev.sequence + 1;
-	} else {
-		/*
-		 * The last crc is available earliest one
-		 * frame after the last flip latched.
-		 */
-		vblank[i - 1] = kmstest_get_vblank(data->drm_fd, pipe, 0) + 1;
-	}
-
-	/*
-	 * Get the remaining two crcs
-	 *
-	 * TODO: avoid the extra wait by maintaining the pipeline
-	 * between different pixel formats as well? Could get messy.
-	 */
-	if (i >= 2)
-		capture_crc(data, vblank[i - 2], &crc[i - 2]);
-	capture_crc(data, vblank[i - 1], &crc[i - 1]);
+	igt_pipe_crc_pipelined_test(&data->display, data->pipe_crc,
+				    capture_format_crcs_planar_prepare,
+				    capture_format_crcs_planar_commit,
+				    &td, crc, data->num_colors);
 }
 
 static bool test_format_plane_colors(data_t *data, enum pipe pipe,

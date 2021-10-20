@@ -88,4 +88,9 @@ void igt_pipe_crc_get_for_frame(int drm_fd, igt_pipe_crc_t *pipe_crc,
 
 void igt_pipe_crc_collect_crc(igt_pipe_crc_t *pipe_crc, igt_crc_t *out_crc);
 
+void igt_pipe_crc_pipelined_test(igt_display_t *display, igt_pipe_crc_t *pipe_crc,
+				 void (*prepare)(void *data, int i),
+				 int (*commit)(void *data, int i), void *data,
+				 igt_crc_t crcs[], int num_crcs);
+
 #endif /* __IGT_PIPE_CRC_H__ */
